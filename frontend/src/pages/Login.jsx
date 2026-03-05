@@ -9,10 +9,7 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post(
-        "http://localhost:3000/api/auth/login",
-        { email, password }
-      );
+      const response = await axios.post('/api/auth/login', { email, password });
       console.log(response);
       // Handle successful login here (store token, redirect, etc.)
     } catch (error) {
@@ -50,7 +47,7 @@ const Login = () => {
               type="password"
               id="password"
               className="w-full px-3 py-2 border rounded"
-              placeholder="********"
+              placeholder="*****"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
