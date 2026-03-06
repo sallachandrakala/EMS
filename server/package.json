@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "nodemon --env-file=.env index.js"
+    "start": "node scripts/kill-port-5000.js && nodemon --env-file=.env index.js",
+    "start:nokill": "nodemon --env-file=.env index.js"
   },
   "keywords": [],
   "author": "",

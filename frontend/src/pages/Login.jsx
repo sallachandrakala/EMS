@@ -1,20 +1,45 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/authContext';
+import { api } from '../api/client';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error,setError] = useState(null)
+
+  const { login, logout } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    // Always require fresh login when visiting login page
+    localStorage.removeItem('token')
+    logout()
+  }, [])
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError(null)
     try {
-      const response = await axios.post('/api/auth/login', { email, password });
-      console.log(response);
-      // Handle successful login here (store token, redirect, etc.)
+      const response = await api.post('/api/auth/login', { email, password });
+
+      if(response.data.success) {
+        login(response.data.user)
+        localStorage.setItem('token', response.data.token)
+
+        if(response.data.user.role === "admin"){
+          navigate('/admin-dashboard')
+        } else {
+          navigate("/employee-dashboard") 
+        }
+      }
+
     } catch (error) {
-      console.log(error);
-      // Handle error here (show error message to user)
+      if(error.response && !error.response.data.success){
+        setError(error.response.data.error)
+      } else {
+        setError("Server Error")
+      }
     }
   };
 
@@ -26,6 +51,8 @@ const Login = () => {
       
       <div className="border shadow p-6 w-80 bg-white">
         <h2 className="text-2xl font-bold mb-4">Login</h2>
+
+        {error && <p className="text-red-500">{error}</p>}
         
         <form onSubmit={handleSubmit}>
           <div className="mb-4">
