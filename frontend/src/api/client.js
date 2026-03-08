@@ -1,7 +1,6 @@
 import axios from 'axios'
 
-// Dev: use same origin so Vite proxies /api to backend (http://127.0.0.1:5000).
-// Production: set VITE_API_URL to your backend URL (e.g. https://api.example.com).
+// Use Vite proxy for development
 const baseURL = import.meta.env.DEV ? '' : (import.meta.env.VITE_API_URL || '')
 
 export const api = axios.create({

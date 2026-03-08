@@ -4,8 +4,8 @@ import { useAuth } from '../context/authContext';
 import { api } from '../api/client';
 
 const Login = () => {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('admin@gmail.com');
+  const [password, setPassword] = useState('admin123');
   const [error,setError] = useState(null)
 
   const { login, logout } = useAuth()
@@ -21,7 +21,12 @@ const Login = () => {
     e.preventDefault();
     setError(null)
     try {
+      console.log('Attempting login with:', { email, password });
+      console.log('API endpoint:', '/api/auth/login');
+      
       const response = await api.post('/api/auth/login', { email, password });
+      
+      console.log('Login response:', response.data);
 
       if(response.data.success) {
         login(response.data.user)
@@ -32,9 +37,14 @@ const Login = () => {
         } else {
           navigate("/employee-dashboard") 
         }
+      } else {
+        setError(response.data.error || 'Login failed')
       }
 
     } catch (error) {
+      console.error('Login error:', error);
+      console.error('Error response:', error.response);
+      
       if(error.response && !error.response.data.success){
         setError(error.response.data.error)
       } else {

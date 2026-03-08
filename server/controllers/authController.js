@@ -6,6 +6,13 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
         
+        if (!email || !password) {
+            return res.status(400).json({ 
+                success: false, 
+                error: "Email and password are required"
+            });
+        }
+        
         const user = await User.findOne({ email });
         
         if (!user) {
@@ -41,7 +48,7 @@ export const login = async (req, res) => {
         });
         
     } catch (error) {
-        console.log(error.message);
+        console.error('Login error:', error);
         res.status(500).json({
             success: false,
             error: "Server Error"
