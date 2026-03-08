@@ -32,7 +32,7 @@ function App() {
         <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<Login />} />
         <Route
-          path="/admin-dashboard"
+          path="/admin-dashboard/*"
           element={
             <RequireRole role="admin">
               <AdminDashboard />

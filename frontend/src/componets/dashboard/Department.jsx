@@ -1,24 +1,17 @@
 import React from 'react'
-import SummaryCard from './SummaryCard'
-import { FaBuilding, FaUsers, FaCog, FaSignOutAlt } from 'react-icons/fa'
+import { FaBuilding, FaSignOutAlt } from 'react-icons/fa'
 
 const Department = () => {
   return (
     <div className='min-h-screen bg-white'>
-      <div className='p-8 bg-white'>
-        <div className='flex justify-end items-center mb-8'>
+      <div className='p-8 bg-white pt-4'>
+        <div className='flex justify-end items-center'>
           <button className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'>
             <FaSignOutAlt />
             <span>Logout</span>
           </button>
         </div>
         
-        <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
-          <SummaryCard icon={<FaBuilding />} text="Total Departments" number={5} color="teal" />
-          <SummaryCard icon={<FaUsers />} text="Total Staff" number={13} color="blue" />
-          <SummaryCard icon={<FaCog />} text="Active Departments" number={5} color="green" />
-        </div>
-
         <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-6'>
           <h4 className='text-xl font-bold text-gray-800 mb-4'>Department List</h4>
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4'>

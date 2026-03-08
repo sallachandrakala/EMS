@@ -1,11 +1,11 @@
 import React from 'react'
-import { FaCog, FaUser, FaLock, FaBell, FaDatabase, FaSignOutAlt } from 'react-icons/fa'
+import { FaUser, FaLock, FaBell, FaDatabase, FaSignOutAlt } from 'react-icons/fa'
 
 const Settings = () => {
   return (
     <div className='min-h-screen bg-white'>
-      <div className='p-8 bg-white'>
-        <div className='flex justify-end items-center mb-8'>
+      <div className='p-8 bg-white pt-4'>
+        <div className='flex justify-end items-center'>
           <button className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'>
             <FaSignOutAlt />
             <span>Logout</span>
