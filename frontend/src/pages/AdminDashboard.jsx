@@ -1,34 +1,28 @@
 import React from 'react'
-import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/authContext'
+import { Routes, Route } from 'react-router-dom'
+import AdminSidebar from '../componets/dashboard/AdminSidebar'
+import AdminSummary from '../componets/dashboard/AdminSummary'
+import Employee from '../componets/dashboard/Employee'
+import Department from '../componets/dashboard/Department'
+import Leave from '../componets/dashboard/Leave'
+import Salary from '../componets/dashboard/Salary'
+import Settings from '../componets/dashboard/Settings'
 
 const AdminDashboard = () => {
-    const { user, logout } = useAuth()
-    const navigate = useNavigate()
-
-    const handleLogout = () => {
-        logout()
-        navigate('/login')
-    }
-
     return (
-        <div className="p-4">
-            <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold">Admin Dashboard</h1>
-                <button
-                    onClick={handleLogout}
-                    className="bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700 transition"
-                >
-                    Logout
-                </button>
-            </div>
-
-            <div className="mt-4">
-                {user ? (
-                    <p>Welcome, <span className="font-medium">{user.name}</span></p>
-                ) : (
-                    <p className="text-gray-600">Not logged in.</p>
-                )}
+        <div className="flex h-screen">
+            <AdminSidebar />
+            <div className="flex-1 flex flex-col ml-64">
+                <main className="flex-1 overflow-y-auto">
+                    <Routes>
+                        <Route path="/" element={<AdminSummary />} />
+                        <Route path="/employees" element={<Employee />} />
+                        <Route path="/departments" element={<Department />} />
+                        <Route path="/leave" element={<Leave />} />
+                        <Route path="/salary" element={<Salary />} />
+                        <Route path="/settings" element={<Settings />} />
+                    </Routes>
+                </main>
             </div>
         </div>
     )
