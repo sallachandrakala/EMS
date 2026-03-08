@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/authContext";
+import { FaMoneyBillWave } from "react-icons/fa";
 
 const EmployeeDashboard = () => {
   const { user, logout } = useAuth();
@@ -15,12 +16,21 @@ const EmployeeDashboard = () => {
     <div className="p-4">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-semibold">Employee Dashboard</h1>
-        <button
-          onClick={handleLogout}
-          className="bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700 transition"
-        >
-          Logout
-        </button>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => navigate("/salary-management")}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition flex items-center"
+          >
+            <FaMoneyBillWave className="mr-2" />
+            Salary Management
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-teal-600 text-white px-3 py-1 rounded hover:bg-teal-700 transition"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       <div className="mt-4">

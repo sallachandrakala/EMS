@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
+import SalaryManagement from "./componets/dashboard/SalaryManagement";
 import { useAuth } from "./context/authContext";
 
 const RequireAuth = ({ children }) => {
@@ -44,6 +45,14 @@ function App() {
           element={
             <RequireAuth>
               <EmployeeDashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/salary-management"
+          element={
+            <RequireAuth>
+              <SalaryManagement />
             </RequireAuth>
           }
         />

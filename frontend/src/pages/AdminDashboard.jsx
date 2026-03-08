@@ -5,7 +5,7 @@ import AdminSummary from '../componets/dashboard/AdminSummary'
 import Employee from '../componets/dashboard/Employee'
 import Department from '../componets/dashboard/Department'
 import Leave from '../componets/dashboard/Leave'
-import Salary from '../componets/dashboard/Salary'
+import SalaryCards from '../componets/dashboard/SalaryCards'
 import Settings from '../componets/dashboard/Settings'
 
 const AdminDashboard = () => {
@@ -19,7 +19,7 @@ const AdminDashboard = () => {
                         <Route path="/employees" element={<Employee />} />
                         <Route path="/departments" element={<Department />} />
                         <Route path="/leave" element={<Leave />} />
-                        <Route path="/salary" element={<Salary />} />
+                        <Route path="/salary" element={<SalaryCards />} />
                         <Route path="/settings" element={<Settings />} />
                     </Routes>
                 </main>

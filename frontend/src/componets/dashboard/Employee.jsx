@@ -294,7 +294,7 @@ const Employee = () => {
                   className='w-32 h-32 rounded-full object-cover border-4 border-gray-200 mb-4'
                 />
                 <h3 className='text-xl font-bold text-gray-800'>{selectedEmployee.name}</h3>
-                <p className='text-gray-600'>{selectedEmployee.designation || 'Employee'}</p>
+                <p className='text-gray-600'>{selectedEmployee.designation || 'Employee'} • {selectedEmployee.department}</p>
                 <span className={`mt-2 px-3 py-1 rounded-full text-sm ${
                   selectedEmployee.status === 'Active' 
                     ? 'bg-green-100 text-green-800' 
@@ -306,7 +306,7 @@ const Employee = () => {
 
               {/* Personal Information */}
               <div className='space-y-4'>
-                <h5 className='text-lg font-semibold text-gray-800 border-b pb-2'>Personal Information</h5>
+                <h5 className='text-lg font-semibold text-gray-800 border-b-2 border-gray-200 pb-2'>Personal Information</h5>
                 <div className='space-y-3'>
                   <div className='flex justify-between'>
                     <span className='text-gray-600'>Employee ID:</span>
@@ -737,18 +737,20 @@ const Employee = () => {
             </div>
 
             <div className='mt-8 flex justify-center space-x-4'>
-              <button 
-                onClick={closeAddPage}
-                className='px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-lg'
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={handleSubmit}
-                className='px-8 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-lg'
-              >
-                {editingEmployee ? 'Update Employee' : 'Add Employee'}
-              </button>
+              <>
+                <button 
+                  onClick={closeAddPage}
+                  className='px-8 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors text-lg'
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={handleSubmit}
+                  className='px-8 py-3 bg-teal-500 hover:bg-teal-600 text-white rounded-lg transition-colors text-lg'
+                >
+                  {editingEmployee ? 'Update Employee' : 'Add Employee'}
+                </button>
+              </>
             </div>
           </div>
         </div>
@@ -788,9 +790,15 @@ const Employee = () => {
               >
                 <span>Add Employee</span>
               </button>
+              <button 
+                onClick={openSalaryPage}
+                className='flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 transition-colors whitespace-nowrap'
+              >
+                <FaMoneyBillWave className='text-xs' />
+                <span>Add New Salary</span>
+              </button>
             </div>
           </div>
-
           {/* Employee Table */}
           <div className='overflow-x-auto'>
             <table className='w-full text-left'>
@@ -826,6 +834,7 @@ const Employee = () => {
                           <FaEye className='text-xs' />
                           <span>View</span>
                         </button>
+                        <>
                         <button 
                           onClick={() => openEditPage(employee)}
                           className='flex items-center space-x-1 text-white px-3 py-1 rounded text-sm transition-colors' 
@@ -849,6 +858,7 @@ const Employee = () => {
                         >
                           <span>{employee.status === 'On Leave' ? 'Return' : 'Leave'}</span>
                         </button>
+                        </>
                       </div>
                     </td>
                   </tr>
@@ -862,4 +872,4 @@ const Employee = () => {
   )
 }
 
-export default Employee
+export default Employee;
