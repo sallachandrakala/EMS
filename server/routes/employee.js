@@ -16,10 +16,13 @@ router.get("/", async (req, res) => {
 // Create new employee
 router.post("/", async (req, res) => {
     try {
+        console.log('Received employee data:', req.body);
         const employee = new Employee(req.body);
         const savedEmployee = await employee.save();
         res.status(201).json(savedEmployee);
     } catch (error) {
+        console.error('Employee creation error details:', error);
+        console.error('Validation errors:', error.errors);
         res.status(400).json({ error: error.message });
     }
 });

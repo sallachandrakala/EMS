@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { FaMoneyBillWave, FaTimes, FaUpload, FaSave, FaPlus, FaSearch } from 'react-icons/fa'
-import { employeeAPI } from '../../services/api'
+import { FaMoneyBillWave, FaTimes, FaUpload, FaSave, FaPlus, FaSearch, FaSignOutAlt } from 'react-icons/fa'
+import { employeeAPI, salaryAPI } from '../../services/api'
 
 const SalaryManagement = () => {
   const [showAddPage, setShowAddPage] = useState(false)
@@ -34,31 +34,49 @@ const SalaryManagement = () => {
 
   useEffect(() => {
     loadSalaries()
+    // Check if coming from employee dashboard with selected employee
+    const storedEmployee = localStorage.getItem('selectedEmployee')
+    if (storedEmployee) {
+      const employee = JSON.parse(storedEmployee)
+      if (employee) {
+        // Pre-fill form with employee data
+        setFormData({
+          employeeId: employee.employeeId || '',
+          employeeName: employee.name || '',
+          email: employee.email || '',
+          phone: employee.phone || '',
+          dateOfBirth: employee.dateOfBirth || '',
+          maritalStatus: employee.maritalStatus || '',
+          designation: employee.designation || '',
+          department: employee.department || '',
+          basicSalary: employee.basicSalary || employee.salary || '',
+          allowances: employee.allowances || '',
+          deductions: employee.deductions || '',
+          netSalary: employee.netSalary || employee.salary || '',
+          effectiveDate: new Date().toISOString().split('T')[0],
+          paymentMethod: 'Bank Transfer',
+          role: employee.role || '',
+          status: employee.status || 'Active',
+          password: employee.password || '',
+          image: employee.image || null,
+          imageName: '',
+          notes: employee.salaryNotes || ''
+        })
+        // Open the add page with pre-filled data
+        setShowAddPage(true)
+      }
+      // Clear the stored data after using it
+      localStorage.removeItem('selectedEmployee')
+    }
   }, [])
 
   const loadSalaries = async () => {
     try {
       setLoading(true)
-      const data = await employeeAPI.getAll()
-      const salaryData = data.map(emp => ({
-        _id: emp._id,
-        employeeId: emp.employeeId,
-        employeeName: emp.name,
-        basicSalary: emp.basicSalary || 0,
-        allowances: emp.allowances || 0,
-        deductions: emp.deductions || 0,
-        netSalary: emp.netSalary || emp.salary || 0,
-        effectiveDate: emp.effectiveDate || new Date().toISOString().split('T')[0],
-        paymentMethod: emp.paymentMethod || 'Bank Transfer',
-        image: emp.image,
-        notes: emp.salaryNotes || '',
-        department: emp.department,
-        status: emp.status
-      }))
-      setSalaries(salaryData)
+      const data = await salaryAPI.getAll()
+      setSalaries(data)
     } catch (error) {
       console.error('Failed to load salaries:', error)
-      setSalaries([])
     } finally {
       setLoading(false)
     }
@@ -184,36 +202,59 @@ const SalaryManagement = () => {
       return
     }
 
-    const salaryData = {
-      ...formData,
-      basicSalary: parseFloat(formData.basicSalary),
-      allowances: parseFloat(formData.allowances),
-      deductions: parseFloat(formData.deductions),
-      netSalary: parseFloat(formData.netSalary),
-      effectiveDate: formData.effectiveDate,
-      paymentMethod: formData.paymentMethod,
-      salaryNotes: formData.notes,
-      image: formData.image || `https://picsum.photos/seed/salary${salaries.length + 1}/200/200.jpg`
-    }
-
     try {
-      if (selectedSalary) {
-        await employeeAPI.update(selectedSalary._id, salaryData)
-        setSalaries(prev => 
-          prev.map(salary => 
-            salary._id === selectedSalary._id 
-              ? { ...salary, ...salaryData }
-              : salary
-          )
-        )
-      } else {
-        const newSalary = {
-          ...salaryData,
-          _id: `salary_${Date.now()}`
-        }
-        setSalaries(prev => [...prev, newSalary])
+      // Create salary record
+      const salaryData = {
+        employeeId: formData.employeeId,
+        employeeName: formData.employeeName,
+        email: formData.email,
+        phone: formData.phone,
+        designation: formData.designation,
+        department: formData.department,
+        basicSalary: parseFloat(formData.basicSalary),
+        allowances: parseFloat(formData.allowances) || 0,
+        deductions: parseFloat(formData.deductions) || 0,
+        netSalary: parseFloat(formData.netSalary),
+        effectiveDate: formData.effectiveDate || new Date().toISOString().split('T')[0],
+        paymentMethod: formData.paymentMethod,
+        status: formData.status,
+        notes: formData.notes
       }
-      closeAddPage()
+
+      console.log('Submitting salary data:', salaryData) // Debug log
+
+      // Save salary record to database
+      const newSalary = await salaryAPI.create(salaryData)
+      console.log('Salary record saved successfully:', newSalary)
+      
+      // Update local state
+      setSalaries(prev => [...prev, newSalary])
+      
+      // Also update employee record with salary information
+      const employees = await employeeAPI.getAll()
+      const employee = employees.find(emp => emp.employeeId === formData.employeeId)
+      
+      if (employee) {
+        const employeeData = {
+          ...employee,
+          basicSalary: parseFloat(formData.basicSalary),
+          allowances: parseFloat(formData.allowances) || 0,
+          deductions: parseFloat(formData.deductions) || 0,
+          netSalary: parseFloat(formData.netSalary)
+        }
+        await employeeAPI.update(employee._id, employeeData)
+        
+        // Show success message
+        alert('Salary information saved successfully!')
+        
+        // Navigate back to employee dashboard after saving
+        setTimeout(() => {
+          window.location.href = '/employee-dashboard'
+        }, 1000)
+      } else {
+        alert('Employee not found. Please check the Employee ID.')
+      }
+      
     } catch (error) {
       console.error('Failed to save salary:', error)
       alert('Failed to save salary. Please check server connection.')
@@ -223,12 +264,22 @@ const SalaryManagement = () => {
   const handleDelete = async (salaryId) => {
     if (window.confirm('Are you sure you want to delete this salary record?')) {
       try {
-        await employeeAPI.delete(salaryId.replace('salary_', ''))
+        await salaryAPI.delete(salaryId)
         setSalaries(prev => prev.filter(salary => salary._id !== salaryId))
       } catch (error) {
         console.error('Failed to delete salary:', error)
-        alert('Failed to delete salary. Please check server connection.')
+        alert('Failed to delete salary. Please try again.')
       }
+    }
+  }
+
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      // Clear any stored authentication data
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      // Redirect to login page
+      window.location.href = '/login'
     }
   }
 
@@ -643,20 +694,13 @@ const SalaryManagement = () => {
               </div>
             </div>
 
-            <div className='flex justify-end space-x-4 mt-8'>
-              <button
-                type='button'
-                onClick={closeAddPage}
-                className='px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors'
-              >
-                Cancel
-              </button>
+            <div className='flex justify-end mt-8'>
               <button
                 type='submit'
                 className='px-8 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors flex items-center'
               >
                 <FaSave className='mr-2' />
-                {selectedSalary ? 'Update Salary' : 'Add Employee'}
+                {selectedSalary ? 'Update Salary' : 'Add Salary'}
               </button>
             </div>
           </form>
@@ -668,19 +712,32 @@ const SalaryManagement = () => {
   return (
     <div className='min-h-screen bg-gray-100 p-8'>
       <div className='max-w-7xl mx-auto'>
+        <div className='text-center mb-8'>
+          <h1 className='text-4xl font-bold text-gray-800 mb-2'>Salary Management</h1>
+          <p className='text-gray-600'>Manage employee salaries and compensation</p>
+        </div>
         <div className='bg-white rounded-lg shadow-sm p-6 mb-8'>
           <div className='flex justify-between items-center'>
             <h2 className='text-3xl font-bold text-gray-800 flex items-center'>
               <FaMoneyBillWave className='mr-3 text-teal-600' />
               Salary Management
             </h2>
-            <button
-              onClick={openAddPage}
-              className='bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center'
-            >
-              <FaPlus className='mr-2' />
-              Add New Salary
-            </button>
+            <div className='flex items-center space-x-3'>
+              <button
+                onClick={openAddPage}
+                className='bg-teal-600 hover:bg-teal-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center'
+              >
+                <FaPlus className='mr-2' />
+                Add New Salary
+              </button>
+              <button
+                onClick={handleLogout}
+                className='bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg transition-colors flex items-center'
+              >
+                <FaSignOutAlt className='mr-2' />
+                Logout
+              </button>
+            </div>
           </div>
 
           <div className='mt-6'>

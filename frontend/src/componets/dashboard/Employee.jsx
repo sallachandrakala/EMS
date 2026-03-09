@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FaSignOutAlt, FaEdit, FaTrash, FaTimes, FaMoneyBillWave, FaArrowLeft, FaSearch, FaEye, FaMoneyBill } from 'react-icons/fa'
 import { employeeAPI } from '../../services/api'
 
 const Employee = () => {
+  const navigate = useNavigate()
   const [showAddPage, setShowAddPage] = useState(false)
   const [showViewPage, setShowViewPage] = useState(false)
   const [showSalaryPage, setShowSalaryPage] = useState(false)
@@ -11,6 +13,14 @@ const Employee = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null)
   const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
+  const [salaryFormData, setSalaryFormData] = useState({
+    basicSalary: '',
+    allowances: '',
+    deductions: '',
+    effectiveDate: new Date().toISOString().split('T')[0],
+    paymentMethod: 'Bank Transfer',
+    notes: ''
+  })
 
   // Load employees from server
   useEffect(() => {
@@ -41,12 +51,11 @@ const Employee = () => {
     maritalStatus: '',
     designation: '',
     department: '',
-    salary: '',
+    basicSalary: '',
     password: '',
     role: '',
     image: null,
     status: 'Active',
-    basicSalary: '',
     allowances: '',
     netSalary: ''
   })
@@ -75,12 +84,11 @@ const Employee = () => {
       maritalStatus: '',
       designation: '',
       department: '',
-      salary: '',
+      basicSalary: '',
       password: '',
       role: '',
       image: null,
       status: 'Active',
-      basicSalary: '',
       allowances: '',
       netSalary: ''
     })
@@ -92,13 +100,68 @@ const Employee = () => {
   }
 
   const openSalaryPage = (employee) => {
-    setSelectedEmployee(employee)
-    setShowSalaryPage(true)
+    // Store selected employee data for salary dashboard
+    localStorage.setItem('selectedEmployee', JSON.stringify(employee))
+    // Navigate to salary dashboard
+    navigate('/salary-management')
   }
 
   const openLeavePage = (employee) => {
     setSelectedEmployee(employee)
     setShowLeavePage(true)
+  }
+
+  const handleSalarySubmit = async (e) => {
+    e.preventDefault()
+    
+    if (!selectedEmployee || !salaryFormData.basicSalary) {
+      alert('Please enter basic salary')
+      return
+    }
+
+    try {
+      const basicSalary = parseFloat(salaryFormData.basicSalary)
+      const allowances = parseFloat(salaryFormData.allowances) || 0
+      const deductions = parseFloat(salaryFormData.deductions) || 0
+      const netSalary = basicSalary + allowances - deductions
+
+      const employeeData = {
+        ...selectedEmployee,
+        basicSalary: basicSalary,
+        allowances: allowances,
+        deductions: deductions,
+        netSalary: netSalary,
+        effectiveDate: salaryFormData.effectiveDate,
+        paymentMethod: salaryFormData.paymentMethod,
+        salaryNotes: salaryFormData.notes
+      }
+
+      console.log('Saving salary data:', employeeData) // Debug log
+      await employeeAPI.update(selectedEmployee._id, employeeData)
+      console.log('Salary data saved successfully') // Debug log
+      
+      // Update local employees state
+      setEmployees(prev => prev.map(emp => 
+        emp._id === selectedEmployee._id ? employeeData : emp
+      ))
+
+      alert('Salary information saved successfully!')
+      setShowSalaryPage(false)
+      setSelectedEmployee(null)
+      
+      // Reset salary form
+      setSalaryFormData({
+        basicSalary: '',
+        allowances: '',
+        deductions: '',
+        effectiveDate: new Date().toISOString().split('T')[0],
+        paymentMethod: 'Bank Transfer',
+        notes: ''
+      })
+    } catch (error) {
+      console.error('Failed to save salary:', error) // Debug log
+      alert('Failed to save salary. Please try again.')
+    }
   }
 
   const openEditPage = (employee) => {
@@ -113,12 +176,11 @@ const Employee = () => {
       maritalStatus: employee.maritalStatus || '',
       designation: employee.designation || '',
       department: employee.department || '',
-      salary: employee.salary || '',
+      basicSalary: employee.basicSalary || '',
       password: employee.password || '',
       role: employee.role || '',
       image: null,
       status: employee.status || 'Active',
-      basicSalary: employee.basicSalary || '',
       allowances: employee.allowances || '',
       netSalary: employee.netSalary || ''
     })
@@ -350,82 +412,147 @@ const Employee = () => {
     )
   }
 
-  // Salary Details Page
+  // Salary Form Modal
   if (showSalaryPage && selectedEmployee) {
     return (
-      <div className='min-h-screen bg-white'>
-        <div className='p-8 bg-white pt-4'>
-          <div className='flex justify-between items-center mb-6'>
-            <button 
-              onClick={closeSalaryPage}
-              className='flex items-center space-x-2 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors'
-            >
-              <FaArrowLeft />
-              <span>Back to Employee</span>
-            </button>
-            <h4 className='text-2xl font-bold text-gray-800'>Salary Details</h4>
-          </div>
-
-          <div className='max-w-2xl mx-auto bg-white rounded-lg shadow-sm border border-gray-200 p-8'>
-            <div className='flex items-center mb-6'>
+      <div className='fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'>
+        <div className='bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto'>
+          <div className='p-6 border-b border-gray-200'>
+            <div className='flex justify-between items-center'>
+              <h3 className='text-xl font-bold text-gray-800'>Add Salary Information</h3>
+              <button 
+                onClick={() => setShowSalaryPage(false)}
+                className='text-gray-500 hover:text-gray-700 text-2xl'
+              >
+                ×
+              </button>
+            </div>
+            <div className='mt-4 flex items-center'>
               <img 
                 src={selectedEmployee.image} 
                 alt={selectedEmployee.name} 
-                className='w-16 h-16 rounded-full object-cover border-2 border-gray-200 mr-4'
+                className='w-12 h-12 rounded-full object-cover border-2 border-gray-200 mr-3'
               />
               <div>
-                <h3 className='text-xl font-bold text-gray-800'>{selectedEmployee.name}</h3>
-                <p className='text-gray-600'>{selectedEmployee.designation} • {selectedEmployee.department}</p>
-                <p className='text-sm text-gray-500'>Employee ID: {selectedEmployee.employeeId}</p>
+                <p className='font-semibold text-gray-800'>{selectedEmployee.name}</p>
+                <p className='text-sm text-gray-600'>{selectedEmployee.employeeId} • {selectedEmployee.department}</p>
               </div>
-            </div>
-
-            <div className='bg-gray-50 rounded-lg p-6 mb-6'>
-              <h5 className='text-lg font-semibold text-gray-800 mb-4'>Salary Breakdown</h5>
-              <div className='space-y-3'>
-                <div className='flex justify-between items-center py-2 border-b'>
-                  <span className='text-gray-600'>Basic Salary:</span>
-                  <span className='font-medium text-lg'>₹{selectedEmployee.basicSalary}</span>
-                </div>
-                <div className='flex justify-between items-center py-2 border-b'>
-                  <span className='text-gray-600'>Allowances:</span>
-                  <span className='font-medium text-lg'>₹{selectedEmployee.allowances}</span>
-                </div>
-                <div className='flex justify-between items-center py-2'>
-                  <span className='text-gray-800 font-semibold'>Net Salary:</span>
-                  <span className='font-bold text-xl text-green-600'>₹{selectedEmployee.netSalary}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
-              <div className='bg-blue-50 rounded-lg p-4'>
-                <h6 className='font-semibold text-blue-800 mb-2'>Payment Information</h6>
-                <div className='space-y-2 text-sm'>
-                  <p><strong>Payment Mode:</strong> Bank Transfer</p>
-                  <p><strong>Payment Date:</strong> 1st of every month</p>
-                  <p><strong>Account Status:</strong> Active</p>
-                </div>
-              </div>
-              <div className='bg-green-50 rounded-lg p-4'>
-                <h6 className='font-semibold text-green-800 mb-2'>Tax Information</h6>
-                <div className='space-y-2 text-sm'>
-                  <p><strong>TAX Deducted:</strong> ₹{(selectedEmployee.netSalary * 0.1).toFixed(2)}</p>
-                  <p><strong>TAX Percentage:</strong> 10%</p>
-                  <p><strong>Take Home:</strong> ₹{(selectedEmployee.netSalary * 0.9).toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className='mt-8 flex justify-center space-x-4'>
-              <button 
-                onClick={closeSalaryPage}
-                className='px-8 py-3 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors text-lg'
-              >
-                Close
-              </button>
             </div>
           </div>
+
+          <form onSubmit={handleSalarySubmit} className='p-6'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Basic Salary ($) <span className='text-red-500'>*</span>
+                </label>
+                <input
+                  type='number'
+                  value={salaryFormData.basicSalary}
+                  onChange={(e) => setSalaryFormData(prev => ({ ...prev, basicSalary: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  placeholder='Enter basic salary'
+                  required
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Allowances ($)
+                </label>
+                <input
+                  type='number'
+                  value={salaryFormData.allowances}
+                  onChange={(e) => setSalaryFormData(prev => ({ ...prev, allowances: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  placeholder='Enter allowances'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Deductions ($)
+                </label>
+                <input
+                  type='number'
+                  value={salaryFormData.deductions}
+                  onChange={(e) => setSalaryFormData(prev => ({ ...prev, deductions: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  placeholder='Enter deductions'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Net Salary ($)
+                </label>
+                <input
+                  type='number'
+                  value={parseFloat(salaryFormData.basicSalary || 0) + parseFloat(salaryFormData.allowances || 0) - parseFloat(salaryFormData.deductions || 0)}
+                  readOnly
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100'
+                  placeholder='Calculated net salary'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Effective Date
+                </label>
+                <input
+                  type='date'
+                  value={salaryFormData.effectiveDate}
+                  onChange={(e) => setSalaryFormData(prev => ({ ...prev, effectiveDate: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Payment Method
+                </label>
+                <select
+                  value={salaryFormData.paymentMethod}
+                  onChange={(e) => setSalaryFormData(prev => ({ ...prev, paymentMethod: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                >
+                  <option value='Bank Transfer'>Bank Transfer</option>
+                  <option value='Cash'>Cash</option>
+                  <option value='Check'>Check</option>
+                  <option value='Direct Deposit'>Direct Deposit</option>
+                </select>
+              </div>
+            </div>
+
+            <div className='mt-4'>
+              <label className='block text-sm font-medium text-gray-700 mb-2'>
+                Notes
+              </label>
+              <textarea
+                value={salaryFormData.notes}
+                onChange={(e) => setSalaryFormData(prev => ({ ...prev, notes: e.target.value }))}
+                rows={3}
+                className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                placeholder='Enter any additional notes...'
+              />
+            </div>
+
+            <div className='mt-6 flex justify-end space-x-3'>
+              <button
+                type='button'
+                onClick={() => setShowSalaryPage(false)}
+                className='px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors'
+              >
+                Cancel
+              </button>
+              <button
+                type='submit'
+                className='px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors'
+              >
+                Save Salary
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     )
@@ -684,13 +811,13 @@ const Employee = () => {
                 </div>
 
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 mb-2'>Salary</label>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>Basic Salary</label>
                   <input 
                     type='number' 
-                    value={formData.salary}
-                    onChange={(e) => handleInputChange('salary', e.target.value)}
+                    value={formData.basicSalary}
+                    onChange={(e) => handleInputChange('basicSalary', e.target.value)}
                     className='w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 text-lg' 
-                    placeholder='Enter salary' 
+                    placeholder='Enter basic salary' 
                   />
                 </div>
 
@@ -758,11 +885,22 @@ const Employee = () => {
     )
   }
 
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+  }
+
   return (
     <div className='min-h-screen bg-white'>
       <div className='p-8 bg-white pt-4'>
         <div className='flex justify-end items-center'>
-          <button className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'>
+          <button 
+            onClick={handleLogout}
+            className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'
+          >
             <FaSignOutAlt />
             <span>Logout</span>
           </button>
@@ -791,7 +929,10 @@ const Employee = () => {
                 <span>Add Employee</span>
               </button>
               <button 
-                onClick={openSalaryPage}
+                onClick={() => {
+                  localStorage.setItem('selectedEmployee', JSON.stringify(null))
+                  navigate('/salary-management')
+                }}
                 className='flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 transition-colors whitespace-nowrap'
               >
                 <FaMoneyBillWave className='text-xs' />

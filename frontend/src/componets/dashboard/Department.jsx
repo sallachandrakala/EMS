@@ -120,6 +120,14 @@ const Department = () => {
     }
   }
 
+  const handleLogout = () => {
+    if (window.confirm('Are you sure you want to logout?')) {
+      localStorage.removeItem('token')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
+  }
+
   // Filter departments based on search term
   const filteredDepartments = departments.filter(dept =>
     dept.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -129,7 +137,10 @@ const Department = () => {
     <div className='min-h-screen bg-white'>
       <div className='p-8 bg-white pt-4'>
         <div className='flex justify-end items-center'>
-          <button className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'>
+          <button 
+            onClick={handleLogout}
+            className='flex items-center space-x-2 bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg transition-colors'
+          >
             <FaSignOutAlt />
             <span>Logout</span>
           </button>

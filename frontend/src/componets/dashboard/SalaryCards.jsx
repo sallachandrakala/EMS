@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react'
 import { FaMoneyBillWave, FaEdit, FaTrash, FaPlus } from 'react-icons/fa'
-import { employeeAPI } from '../../services/api'
+import { employeeAPI, salaryAPI } from '../../services/api'
 
 const SalaryCards = () => {
   const [showForm, setShowForm] = useState(true) // Always show form
   const [editingSalary, setEditingSalary] = useState(null)
   const [formData, setFormData] = useState({
+    employeeId: '',
     employeeName: '',
+    email: '', // Added required email field
     department: '',
     basicSalary: '',
     allowances: '',
@@ -17,24 +19,53 @@ const SalaryCards = () => {
   const handleSubmit = async (e) => {
     e.preventDefault()
     
-    if (!formData.employeeName || !formData.basicSalary) {
-      alert('Please enter employee name and basic salary')
+    if (!formData.employeeName || !formData.basicSalary || !formData.email) {
+      alert('Please enter employee name, email, and basic salary')
       return
     }
 
-    const salaryData = {
-      employeeName: formData.employeeName,
-      department: formData.department,
-      basicSalary: parseFloat(formData.basicSalary),
-      allowances: parseFloat(formData.allowances),
-      deductions: parseFloat(formData.deductions),
-      payDate: formData.payDate
-    }
-
     try {
-      await employeeAPI.create(salaryData)
-      alert('Salary saved successfully!')
-      resetForm()
+      if (editingSalary) {
+        // Update existing salary record
+        const salaryData = {
+          employeeId: formData.employeeId,
+          employeeName: formData.employeeName,
+          email: formData.email,
+          department: formData.department,
+          basicSalary: parseFloat(formData.basicSalary),
+          allowances: parseFloat(formData.allowances),
+          deductions: parseFloat(formData.deductions),
+          netSalary: parseFloat(formData.basicSalary) + parseFloat(formData.allowances) - parseFloat(formData.deductions),
+          payDate: formData.payDate,
+          status: 'Active'
+        }
+        
+        console.log('Updating salary record with data:', salaryData)
+        const response = await salaryAPI.update(editingSalary._id, salaryData)
+        console.log('Salary record updated successfully:', response)
+        alert('Salary information updated successfully!')
+        resetForm()
+      } else {
+        // Create new salary record
+        const salaryData = {
+          employeeId: formData.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
+          employeeName: formData.employeeName,
+          email: formData.email,
+          department: formData.department,
+          basicSalary: parseFloat(formData.basicSalary),
+          allowances: parseFloat(formData.allowances),
+          deductions: parseFloat(formData.deductions),
+          netSalary: parseFloat(formData.basicSalary) + parseFloat(formData.allowances) - parseFloat(formData.deductions),
+          payDate: formData.payDate,
+          status: 'Active'
+        }
+
+        console.log('Creating new salary record with data:', salaryData)
+        const response = await salaryAPI.create(salaryData)
+        console.log('Salary record created successfully:', response)
+        alert('New salary record created successfully!')
+        resetForm()
+      }
     } catch (error) {
       console.error('Failed to save salary:', error)
       alert('Failed to save salary. Please try again.')
@@ -44,7 +75,9 @@ const SalaryCards = () => {
   const resetForm = () => {
     setEditingSalary(null)
     setFormData({
+      employeeId: '',
       employeeName: '',
+      email: '', // Include email in reset
       department: '',
       basicSalary: '',
       allowances: '',
@@ -80,6 +113,19 @@ const SalaryCards = () => {
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div>
                 <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Employee ID <span className='text-red-500'>*</span>
+                </label>
+                <input
+                  type='text'
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData(prev => ({ ...prev, employeeId: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  placeholder='Enter employee ID'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
                   Employee Name <span className='text-red-500'>*</span>
                 </label>
                 <input
@@ -88,6 +134,19 @@ const SalaryCards = () => {
                   onChange={(e) => setFormData(prev => ({ ...prev, employeeName: e.target.value }))}
                   className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
                   placeholder='Enter employee name'
+                />
+              </div>
+
+              <div>
+                <label className='block text-sm font-medium text-gray-700 mb-2'>
+                  Email <span className='text-red-500'>*</span>
+                </label>
+                <input
+                  type='email'
+                  value={formData.email}
+                  onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                  className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  placeholder='Enter email address'
                 />
               </div>
 
