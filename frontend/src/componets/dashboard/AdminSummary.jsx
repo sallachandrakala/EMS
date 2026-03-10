@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import SummaryCard from './SummaryCard'
 import {
   FaUsers,
@@ -13,6 +14,7 @@ import {
 import { employeeAPI, departmentAPI, salaryAPI, leaveAPI } from '../../services/api'
 
 const AdminSummary = () => {
+  const navigate = useNavigate()
   const [stats, setStats] = useState({
     totalEmployees: 0,
     totalDepartments: 0,
@@ -83,10 +85,30 @@ const AdminSummary = () => {
         </div>
         
         <h3 className='text-2xl font-bold text-gray-800 mb-6'>Dashboard Overview</h3>
+        
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12'>
           <SummaryCard icon={<FaUsers />} text="Total Employees" number={stats.totalEmployees} color="teal" />
           <SummaryCard icon={<FaBuilding />} text="Total Departments" number={stats.totalDepartments} color="yellow" />
-          <SummaryCard icon={<FaMoneyBillWave />} text={`Monthly Salary: $${stats.totalSalary.toLocaleString()}`} color="red" />
+          <div 
+            onClick={() => navigate('/admin-dashboard/salary')}
+            className='bg-red-50 border-2 border-red-200 rounded-lg p-6 cursor-pointer hover:bg-red-100 transition-colors'
+          >
+            <div className='flex items-center justify-between'>
+              <div className='flex items-center space-x-3'>
+                <div className='w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center'>
+                  <FaMoneyBillWave className='text-white text-xl' />
+                </div>
+                <div>
+                  <p className='text-sm text-gray-600 font-medium'>Monthly Salary</p>
+                  <p className='text-2xl font-bold text-red-600'>${stats.totalSalary.toLocaleString()}</p>
+                </div>
+              </div>
+              <div className='text-red-500'>
+                <FaMoneyBillWave className='text-xl' />
+              </div>
+            </div>
+            <p className='text-xs text-red-600 mt-3 text-center'>Click to manage salaries</p>
+          </div>
         </div>
 
         <h3 className='text-2xl font-bold text-gray-800 mb-6'>Leave Details</h3>

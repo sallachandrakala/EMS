@@ -931,12 +931,12 @@ const Employee = () => {
               <button 
                 onClick={() => {
                   localStorage.setItem('selectedEmployee', JSON.stringify(null))
-                  navigate('/salary-management')
+                  navigate('/admin-dashboard/salary')
                 }}
                 className='flex items-center space-x-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 transition-colors whitespace-nowrap'
               >
                 <FaMoneyBillWave className='text-xs' />
-                <span>Add New Salary</span>
+                <span>Salary</span>
               </button>
             </div>
           </div>

@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import Login from "./pages/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
-import SalaryManagement from "./componets/dashboard/SalaryManagement";
+import EmployeeProfile from "./pages/EmployeeProfile";
+import SalaryManagement from "./pages/SalaryManagement";
+import SalaryCards from "./componets/dashboard/SalaryCards";
 import { useAuth } from "./context/authContext";
 
 const RequireAuth = ({ children }) => {
@@ -53,6 +55,38 @@ function App() {
           element={
             <RequireAuth>
               <SalaryManagement />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/salary-dashboard"
+          element={
+            <RequireAuth>
+              <SalaryCards />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/admin-dashboard/salary"
+          element={
+            <RequireAuth>
+              <SalaryCards />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/leave-management"
+          element={
+            <RequireAuth>
+              <EmployeeDashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/employee-dashboard/profile"
+          element={
+            <RequireAuth>
+              <EmployeeProfile />
             </RequireAuth>
           }
         />

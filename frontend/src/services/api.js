@@ -121,13 +121,15 @@ export const salaryAPI = {
   // Create new salary record
   create: async (salaryData) => {
     try {
-      console.log('API: Creating salary record with data:', salaryData)
+      // Remove _id field if present to avoid MongoDB ObjectId error
+      const { _id, ...cleanSalaryData } = salaryData
+      console.log('API: Creating salary record with data:', cleanSalaryData)
       const response = await fetch(`${API_BASE_URL}/salaries`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(salaryData)
+        body: JSON.stringify(cleanSalaryData)
       })
       console.log('API: Salary response status:', response.status)
       if (!response.ok) {
@@ -147,12 +149,14 @@ export const salaryAPI = {
   // Update salary record
   update: async (id, salaryData) => {
     try {
+      // Remove _id field if present to avoid MongoDB ObjectId error
+      const { _id, ...cleanSalaryData } = salaryData
       const response = await fetch(`${API_BASE_URL}/salaries/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(salaryData)
+        body: JSON.stringify(cleanSalaryData)
       })
       if (!response.ok) throw new Error('Failed to update salary record')
       return await response.json()
