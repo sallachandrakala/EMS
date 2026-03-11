@@ -5,6 +5,7 @@ export const employeeData = [
     employeeId: "EMP001",
     name: "John Doe",
     email: "john.doe@company.com",
+    password: "password123",
     department: "IT",
     position: "Software Developer",
     phone: "+1 234 567 8900",
@@ -18,18 +19,24 @@ export const employeeData = [
     leaveUsed: 5,
     attendance: 98,
     pendingTasks: 3,
-    overdueTasks: 1
+    completedTasks: 25,
+    projects: ["Project A", "Project B"],
+    skills: ["JavaScript", "React", "Node.js"],
+    performance: 85,
+    status: "Active",
+    role: "employee"
   },
   {
     id: 2,
     employeeId: "EMP002",
     name: "Jane Smith",
     email: "jane.smith@company.com",
+    password: "password123",
     department: "HR",
     position: "HR Manager",
     phone: "+1 234 567 8901",
     address: "456 Oak Ave, New York, NY",
-    joinDate: "2022-06-15",
+    joinDate: "2023-01-15",
     bloodGroup: "A+",
     maritalStatus: "Married",
     emergencyContact: "+1 987 654 3211",
@@ -377,4 +384,94 @@ export const deleteSalaryRequest = (id) => {
     return deleted;
   }
   return null;
+};
+
+// Add new employee record
+export const addEmployeeRecord = (newEmployeeData) => {
+  console.log('addEmployeeRecord called with data:', newEmployeeData)
+  const newEmployee = {
+    id: newEmployeeData.id || Date.now(),
+    employeeId: newEmployeeData.employeeId || `EMP${Date.now()}`,
+    name: newEmployeeData.name || 'Unknown',
+    email: newEmployeeData.email || 'unknown@company.com',
+    department: newEmployeeData.department || 'IT',
+    position: newEmployeeData.position || 'Employee',
+    phone: newEmployeeData.phone || '',
+    address: newEmployeeData.address || '',
+    joinDate: newEmployeeData.joinDate || new Date().toISOString().split('T')[0],
+    bloodGroup: newEmployeeData.bloodGroup || 'O+',
+    maritalStatus: newEmployeeData.maritalStatus || 'Single',
+    emergencyContact: newEmployeeData.emergencyContact || '',
+    salary: newEmployeeData.salary || 0,
+    leaveBalance: newEmployeeData.leaveBalance || 15,
+    leaveUsed: newEmployeeData.leaveUsed || 0,
+    attendance: newEmployeeData.attendance || 100,
+    pendingTasks: newEmployeeData.pendingTasks || 0,
+    completedTasks: newEmployeeData.completedTasks || 0,
+    projects: newEmployeeData.projects || [],
+    skills: newEmployeeData.skills || [],
+    performance: newEmployeeData.performance || 85,
+    status: newEmployeeData.status || 'Active',
+    ...newEmployeeData
+  }
+  console.log('New employee record to add:', newEmployee)
+  employeeData.push(newEmployee)
+  console.log('Employee records after adding:', employeeData.length)
+  
+  // Save to localStorage
+  saveDataToStorage()
+  
+  return newEmployee
+}
+
+// Update employee record
+export const updateEmployeeRecord = (id, updatedData) => {
+  console.log('updateEmployeeRecord called with ID:', id, 'and data:', updatedData)
+  
+  const index = employeeData.findIndex(emp => 
+    (emp.id === id) || (emp._id === id)
+  );
+  
+  if (index !== -1) {
+    console.log('Found employee record at index:', index)
+    employeeData[index] = { ...employeeData[index], ...updatedData };
+    console.log('Updated employee record:', employeeData[index])
+    console.log('All employee records after update:', employeeData.length)
+    
+    // Save to localStorage
+    saveDataToStorage()
+    
+    return employeeData[index];
+  } else {
+    console.log('Employee record not found with ID:', id)
+    return null;
+  }
+};
+
+// Delete employee record
+export const deleteEmployeeRecord = (id) => {
+  console.log('deleteEmployeeRecord called with ID:', id)
+  
+  const index = employeeData.findIndex(emp => 
+    (emp.id === id) || (emp._id === id)
+  );
+  
+  if (index !== -1) {
+    const deleted = employeeData.splice(index, 1)[0];
+    console.log('Deleted employee record:', deleted)
+    console.log('Employee records after deletion:', employeeData.length)
+    
+    // Save to localStorage
+    saveDataToStorage()
+    
+    return deleted;
+  } else {
+    console.log('Employee record not found with ID:', id)
+    return null;
+  }
+};
+
+// Get all employee records
+export const getAllEmployeeRecords = () => {
+  return employeeData;
 };

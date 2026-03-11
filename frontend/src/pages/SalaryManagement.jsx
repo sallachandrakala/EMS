@@ -15,6 +15,7 @@ import {
   FaUser,
   FaSave
 } from 'react-icons/fa'
+import { salaryAPI } from '../services/api'
 
 const SalaryManagement = () => {
   const { user, updateUser } = useAuth()
@@ -50,33 +51,61 @@ const SalaryManagement = () => {
     })
   }, [user])
 
-  const loadData = () => {
-    console.log('=== LOADING DATA (SHOW ALL REQUESTS) ===')
+  const loadData = async () => {
+    console.log('=== LOADING DATA FROM SERVER ===')
     
-    // ONLY load from localStorage - ignore imported data files
-    const storedRecords = localStorage.getItem('salaryRecords')
-    const records = storedRecords ? JSON.parse(storedRecords) : []
-    console.log('Loaded records from localStorage:', records.length)
-    
-    const storedRequests = localStorage.getItem('salaryRequests')
-    const requests = storedRequests ? JSON.parse(storedRequests) : []
-    console.log('Loaded requests from localStorage:', requests.length)
-    console.log('All requests:', requests)
-    
-    // SHOW ALL REQUESTS - Don't filter by employeeId
-    // This allows employees to see all requests they create, regardless of the ID they enter
-    const allSalaryData = [...records, ...requests].sort((a, b) => {
-      const dateA = new Date(a.effectiveDate || a.requestedDate || 0)
-      const dateB = new Date(b.effectiveDate || b.requestedDate || 0)
-      return dateB - dateA
-    })
-    
-    console.log('Total salary data to display:', allSalaryData.length, 'records')
-    console.log('Salary data:', allSalaryData)
-    
-    // If no data in localStorage, show empty (don't use hardcoded data)
-    setSalaries(allSalaryData)
-    setLoading(false)
+    try {
+      // Load salary records from server API
+      const serverRecords = await salaryAPI.getAll()
+      console.log('Loaded records from server:', serverRecords.length)
+      
+      // Load salary requests from server API (if exists)
+      let serverRequests = []
+      try {
+        // Note: This would need a salaryRequestsAPI endpoint
+        // For now, we'll use the records as they contain both
+        serverRequests = serverRecords.filter(record => record.status === 'Pending')
+        console.log('Filtered pending requests from server:', serverRequests.length)
+      } catch (requestError) {
+        console.log('Could not load separate requests:', requestError.message)
+      }
+      
+      // Combine records and requests
+      const allSalaryData = [...serverRecords, ...serverRequests].sort((a, b) => {
+        const dateA = new Date(a.effectiveDate || a.requestedDate || a.createdAt || 0)
+        const dateB = new Date(b.effectiveDate || b.requestedDate || b.createdAt || 0)
+        return dateB - dateA
+      })
+      
+      console.log('Total salary data to display:', allSalaryData.length, 'records')
+      console.log('Salary data:', allSalaryData)
+      
+      setSalaries(allSalaryData)
+      setLoading(false)
+      
+    } catch (error) {
+      console.error('❌ Error loading data from server:', error)
+      console.log('Falling back to localStorage...')
+      
+      // Fallback to localStorage
+      const storedRecords = localStorage.getItem('salaryRecords')
+      const records = storedRecords ? JSON.parse(storedRecords) : []
+      console.log('Loaded records from localStorage:', records.length)
+      
+      const storedRequests = localStorage.getItem('salaryRequests')
+      const requests = storedRequests ? JSON.parse(storedRequests) : []
+      console.log('Loaded requests from localStorage:', requests.length)
+      
+      const allSalaryData = [...records, ...requests].sort((a, b) => {
+        const dateA = new Date(a.effectiveDate || a.requestedDate || 0)
+        const dateB = new Date(b.effectiveDate || b.requestedDate || 0)
+        return dateB - dateA
+      })
+      
+      console.log('Total salary data to display:', allSalaryData.length, 'records')
+      setSalaries(allSalaryData)
+      setLoading(false)
+    }
   }
 
   const handleProfileUpdate = (e) => {
@@ -206,7 +235,7 @@ const SalaryManagement = () => {
     })
   }
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
     
     console.log('🔵 FORM SUBMITTED')
@@ -250,51 +279,83 @@ const SalaryManagement = () => {
         const salaryId = editingSalary._id || editingSalary.id
         console.log('Updating salary with ID:', salaryId)
         
-        // Update in localStorage - salaryRequests
-        const storedRequests = localStorage.getItem('salaryRequests')
-        if (storedRequests) {
-          const requests = JSON.parse(storedRequests)
-          console.log('Current requests before update:', requests)
+        // Update via server API
+        try {
+          console.log('🔄 Updating salary via server API...')
+          const updatedSalary = await salaryAPI.update(salaryId, updatedData)
+          console.log('✅ Server response:', updatedSalary)
           
-          const updatedRequests = requests.map(r => {
-            if (r._id === salaryId || r.id === salaryId) {
-              console.log('Found matching request, updating...')
-              console.log('Old data:', r)
-              const updated = { ...r, ...updatedData }
-              console.log('New data:', updated)
-              return updated
-            }
-            return r
-          })
-          
-          localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
-          console.log('✅ Updated salaryRequests in localStorage')
-          console.log('Updated requests:', updatedRequests)
-        }
-        
-        // Update in localStorage - salaryRecords
-        const storedRecords = localStorage.getItem('salaryRecords')
-        if (storedRecords) {
-          const records = JSON.parse(storedRecords)
-          const updatedRecords = records.map(r => 
-            (r._id === salaryId || r.id === salaryId) 
-              ? { ...r, ...updatedData } 
-              : r
+          // Update local state
+          setSalaryRecords(prev => 
+            prev.map(record => 
+              (record._id === salaryId || record.id === salaryId) 
+                ? { ...record, ...updatedData } 
+                : record
+            )
           )
-          localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
-          console.log('✅ Updated salaryRecords in localStorage')
+          
+          console.log('✅ Salary updated successfully via server API')
+          alert('✅ Salary updated successfully! Name: ' + updatedData.employeeName)
+          setShowAddForm(false)
+          setEditingSalary(null)
+          resetForm()
+          
+          // Reload data from server
+          loadData()
+          
+          // Notify admin dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+          
+        } catch (serverError) {
+          console.error('❌ Server update failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedRequests = localStorage.getItem('salaryRequests')
+          if (storedRequests) {
+            const requests = JSON.parse(storedRequests)
+            console.log('Current requests before update:', requests)
+            
+            const updatedRequests = requests.map(r => {
+              if (r._id === salaryId || r.id === salaryId) {
+                console.log('Found matching request, updating...')
+                console.log('Old data:', r)
+                const updated = { ...r, ...updatedData }
+                console.log('New data:', updated)
+                return updated
+              }
+              return r
+            })
+            
+            localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
+            console.log('✅ Updated salaryRequests in localStorage')
+            console.log('Updated requests:', updatedRequests)
+          }
+          
+          // Update in localStorage - salaryRecords
+          const storedRecords = localStorage.getItem('salaryRecords')
+          if (storedRecords) {
+            const records = JSON.parse(storedRecords)
+            const updatedRecords = records.map(r => 
+              (r._id === salaryId || r.id === salaryId) 
+                ? { ...r, ...updatedData } 
+                : r
+            )
+            localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
+            console.log('✅ Updated salaryRecords in localStorage')
+          }
+          
+          alert('✅ Salary updated locally (server unavailable). Name: ' + updatedData.employeeName)
+          setShowAddForm(false)
+          setEditingSalary(null)
+          resetForm()
+          
+          // Reload data
+          loadData()
+          
+          // Notify admin dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
         }
-        
-        alert('✅ Salary request updated successfully! Name: ' + updatedData.employeeName)
-        setShowAddForm(false)
-        setEditingSalary(null)
-        resetForm()
-        
-        // Reload data
-        loadData()
-        
-        // Notify admin dashboard
-        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
       } catch (error) {
         console.error('Update failed:', error)
         alert('❌ Failed to update salary request!')
@@ -340,46 +401,55 @@ const SalaryManagement = () => {
         console.log('=== CREATING NEW SALARY REQUEST ===')
         console.log('Request data:', newRequestData)
         
-        // Save directly to localStorage
-        const storedRequests = localStorage.getItem('salaryRequests')
-        const requests = storedRequests ? JSON.parse(storedRequests) : []
-        
-        console.log('📦 Current requests in localStorage:', requests.length)
-        
-        requests.push(newRequestData)
-        localStorage.setItem('salaryRequests', JSON.stringify(requests))
-        
-        console.log('✅ Saved to localStorage:', requests.length, 'total requests')
-        console.log('📝 Last saved request:', requests[requests.length - 1])
-        console.log('👤 Employee name:', requests[requests.length - 1].employeeName)
-        console.log('🆔 Employee ID:', requests[requests.length - 1].employeeId)
-        console.log('💰 Net Salary:', requests[requests.length - 1].netSalary)
-        console.log('📅 Effective Date:', requests[requests.length - 1].effectiveDate)
-        console.log('� Status:', requests[requests.length - 1].status)
-        
-        // Verify it was saved
-        const verifyRequests = JSON.parse(localStorage.getItem('salaryRequests') || '[]')
-        console.log('🔍 Verification - Total requests in storage:', verifyRequests.length)
-        
-        alert('✅ Salary request submitted successfully!\n\nName: ' + newRequestData.employeeName + '\nAmount: $' + newRequestData.netSalary.toLocaleString() + '\n\nAdmin will review your request.')
-        
-        // Dispatch event to notify admin dashboard
-        console.log('📡 Dispatching newSalaryRequest event to admin dashboard...')
-        window.dispatchEvent(new CustomEvent('newSalaryRequest', { 
-          detail: { request: newRequestData } 
-        }))
-        
-        // Also dispatch salaryDataUpdated for good measure
-        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
-        
-        console.log('✅ Events dispatched successfully')
-        
-        // Reset form
-        resetForm()
-        setShowAddForm(false)
-        
-        // Reload data to show the new request
-        loadData()
+        // Try to save via server API first
+        try {
+          console.log('🔄 Creating salary via server API...')
+          const newSalary = await salaryAPI.create(newRequestData)
+          console.log('✅ Server response:', newSalary)
+          
+          // Update local state
+          setSalaryRecords(prev => [...prev, newSalary])
+          
+          console.log('✅ Salary created successfully via server API')
+          alert('✅ Salary created successfully! Name: ' + newRequestData.employeeName)
+          setShowAddForm(false)
+          resetForm()
+          
+          // Reload data from server
+          loadData()
+          
+          // Notify admin dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+          
+        } catch (serverError) {
+          console.error('❌ Server creation failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedRequests = localStorage.getItem('salaryRequests')
+          const requests = storedRequests ? JSON.parse(storedRequests) : []
+          
+          console.log('📦 Current requests in localStorage:', requests.length)
+          
+          requests.push(newRequestData)
+          localStorage.setItem('salaryRequests', JSON.stringify(requests))
+          
+          console.log('✅ Saved to localStorage:', requests.length, 'total requests')
+          console.log('📝 Last saved request:', requests[requests.length - 1])
+          console.log('👤 Employee name:', requests[requests.length - 1].employeeName)
+          console.log('🆔 Employee ID:', requests[requests.length - 1].employeeId)
+          console.log('💰 Net Salary:', requests[requests.length - 1].netSalary)
+          console.log('📅 Effective Date:', requests[requests.length - 1].effectiveDate)
+          console.log('📋 Status:', requests[requests.length - 1].status)
+          
+          alert('✅ Salary request created locally (server unavailable). Name: ' + newRequestData.employeeName)
+          setShowAddForm(false)
+          resetForm()
+          setShowAddForm(false)
+          
+          // Reload data to show the new request
+          loadData()
+        }
       } catch (error) {
         console.error('❌ Error submitting salary request:', error)
         alert('❌ Failed to submit salary request! Error: ' + error.message)
@@ -408,49 +478,67 @@ const SalaryManagement = () => {
     setShowAddForm(true)
   }
 
-  const handleDelete = (salary) => {
+  const handleDelete = async (salary) => {
     console.log('=== DELETE BUTTON CLICKED ===')
     console.log('Salary to delete:', salary)
     
     if (window.confirm(`Are you sure you want to delete this salary request for ${salary.employeeName}?`)) {
       try {
-        // Delete from localStorage
-        const storedRequests = localStorage.getItem('salaryRequests')
-        const storedRecords = localStorage.getItem('salaryRecords')
-        
-        if (storedRequests) {
-          const requests = JSON.parse(storedRequests)
-          const updatedRequests = requests.filter(r => 
-            (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
+        // Try to delete via server API first
+        try {
+          console.log('🔄 Deleting salary via server API...')
+          const salaryId = salary._id || salary.id
+          await salaryAPI.delete(salaryId)
+          console.log('✅ Deleted from server')
+          
+          // Update local state
+          setSalaries(prev => prev.filter(s => 
+            (s.id !== salary.id && s._id !== salary._id && s.id !== salary._id && s._id !== salary.id)
+          ))
+          
+          console.log('✅ Salary deleted successfully via server API')
+          alert('✅ Salary deleted successfully!')
+          
+          // Reload data from server
+          loadData()
+          
+        } catch (serverError) {
+          console.error('❌ Server delete failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedRequests = localStorage.getItem('salaryRequests')
+          const storedRecords = localStorage.getItem('salaryRecords')
+          
+          if (storedRequests) {
+            const requests = JSON.parse(storedRequests)
+            const updatedRequests = requests.filter(r => 
+              (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
+            )
+            localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
+            console.log('Deleted from salaryRequests. Remaining:', updatedRequests.length)
+          }
+          
+          if (storedRecords) {
+            const records = JSON.parse(storedRecords)
+            const updatedRecords = records.filter(r => 
+              (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
+            )
+            localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
+            console.log('Deleted from salaryRecords. Remaining:', updatedRecords.length)
+          }
+          
+          // Update state
+          const updatedSalaries = salaries.filter(s => 
+            (s.id !== salary.id && s._id !== salary._id && s.id !== salary._id && s._id !== salary.id)
           )
-          localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
-          console.log('Deleted from salaryRequests. Remaining:', updatedRequests.length)
+          setSalaries(updatedSalaries)
+          
+          console.log('✅ Salary deleted locally (server unavailable)')
+          alert('✅ Salary deleted locally!')
         }
-        
-        if (storedRecords) {
-          const records = JSON.parse(storedRecords)
-          const updatedRecords = records.filter(r => 
-            (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
-          )
-          localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
-          console.log('Deleted from salaryRecords. Remaining:', updatedRecords.length)
-        }
-        
-        // Update state
-        const updatedSalaries = salaries.filter(s => 
-          (s.id !== salary.id && s._id !== salary._id && s.id !== salary._id && s._id !== salary.id)
-        )
-        setSalaries(updatedSalaries)
-        
-        alert('✅ Salary request deleted successfully!')
-        
-        // Notify admin dashboard
-        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
-        
-        // Reload data
-        loadData()
       } catch (error) {
-        console.error('Failed to delete salary:', error)
+        console.error('Delete failed:', error)
         alert('❌ Failed to delete salary request!')
       }
     }

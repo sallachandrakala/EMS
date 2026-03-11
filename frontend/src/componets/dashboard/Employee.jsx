@@ -5,14 +5,16 @@ import { employeeAPI } from '../../services/api'
 
 const Employee = () => {
   const navigate = useNavigate()
+  const [employees, setEmployees] = useState([])
   const [showAddPage, setShowAddPage] = useState(false)
+  const [editingEmployee, setEditingEmployee] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [serverStatus, setServerStatus] = useState('unknown') // 'connected', 'disconnected', 'unknown'
+  const [loading, setLoading] = useState(false)
   const [showViewPage, setShowViewPage] = useState(false)
   const [showSalaryPage, setShowSalaryPage] = useState(false)
   const [showLeavePage, setShowLeavePage] = useState(false)
-  const [searchTerm, setSearchTerm] = useState('')
   const [selectedEmployee, setSelectedEmployee] = useState(null)
-  const [employees, setEmployees] = useState([])
-  const [loading, setLoading] = useState(true)
   const [salaryFormData, setSalaryFormData] = useState({
     basicSalary: '',
     allowances: '',
@@ -59,7 +61,6 @@ const Employee = () => {
     allowances: '',
     netSalary: ''
   })
-  const [editingEmployee, setEditingEmployee] = useState(null)
 
   const filteredEmployees = employees.filter(employee =>
     employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -271,9 +272,13 @@ const Employee = () => {
       image: formData.image || `https://picsum.photos/seed/employee${employees.length + 1}/40/40.jpg`
     }
 
+    console.log('📋 Form data being submitted:', formData)
+    console.log('📋 Employee data being sent to server:', employeeData)
+
     try {
       if (editingEmployee) {
         // Update existing employee
+        console.log('🔄 Updating existing employee:', editingEmployee._id)
         await employeeAPI.update(editingEmployee._id, employeeData)
         setEmployees(prev => 
           prev.map(employee => 
@@ -282,28 +287,73 @@ const Employee = () => {
               : employee
           )
         )
+        console.log('✅ Employee updated successfully')
+        alert('✅ Employee updated successfully!')
       } else {
-        // Add new employee
-        const newEmployee = await employeeAPI.create(employeeData)
-        setEmployees(prev => [...prev, newEmployee])
+        // Add new employee - try server first, then local fallback
+        try {
+          console.log('🔄 Attempting to add employee via server...')
+          console.log('📤 Sending to server:', employeeData)
+          const newEmployee = await employeeAPI.create(employeeData)
+          console.log('✅ Server response:', newEmployee)
+          setEmployees(prev => [...prev, newEmployee])
+          console.log('✅ Employee created successfully via server API')
+          alert('✅ Employee created successfully!')
+        } catch (serverError) {
+          console.log('❌ Server failed, falling back to local data store')
+          console.log('Server error details:', serverError)
+          console.log('Server error message:', serverError.message)
+          
+          // Fallback to local data store
+          try {
+            // Import local data functions
+            const { addEmployeeRecord } = await import('../../data/employeeData.js')
+            
+            // Create employee with local ID
+            const localEmployeeData = {
+              ...employeeData,
+              id: Date.now(), // Use timestamp as local ID
+              _id: undefined, // Remove MongoDB ID
+              joinDate: new Date().toISOString().split('T')[0]
+            }
+            
+            console.log('📝 Adding employee to local data store:', localEmployeeData)
+            const localEmployee = addEmployeeRecord(localEmployeeData)
+            setEmployees(prev => [...prev, localEmployee])
+            console.log('✅ Employee created successfully via local data store')
+            alert('✅ Employee saved locally (server unavailable). Data will sync when server is available.')
+          } catch (localError) {
+            console.error('❌ Local data store also failed:', localError)
+            alert(`❌ Failed to save employee. Server error: ${serverError.message}. Local error: ${localError.message}`)
+          }
+        }
       }
       closeAddPage()
     } catch (error) {
       console.error('Failed to save employee:', error)
+      console.error('Error details:', error)
       alert('Failed to save employee. Please check server connection.')
       // Don't use fallback - show error instead
     }
   }
 
-  const handleDelete = async (employeeId) => {
-    if (window.confirm('Are you sure you want to delete this employee?')) {
+  const handleDelete = async (employee) => {
+    if (window.confirm(`Are you sure you want to delete ${employee.name}?`)) {
       try {
-        await employeeAPI.delete(employeeId)
-        setEmployees(prev => prev.filter(employee => employee._id !== employeeId))
+        console.log('🔄 Deleting employee:', employee)
+        console.log('🆔 Employee ID:', employee._id)
+        
+        await employeeAPI.delete(employee._id)
+        console.log('✅ Employee deleted from server')
+        
+        setEmployees(prev => prev.filter(emp => emp._id !== employee._id))
+        console.log('✅ Employee removed from local state')
+        
+        alert('✅ Employee deleted successfully!')
       } catch (error) {
         console.error('Failed to delete employee:', error)
+        console.error('Error details:', error)
         alert('Failed to delete employee. Please check server connection.')
-        // Don't use fallback - show error instead
       }
     }
   }
@@ -954,7 +1004,7 @@ const Employee = () => {
               </thead>
               <tbody>
                 {filteredEmployees.map((employee, index) => (
-                  <tr key={employee._id} className='border-b border-gray-100'>
+                  <tr key={employee._id || employee.id || index} className='border-b border-gray-100'>
                     <td className='py-3 text-gray-600'>{index + 1}</td>
                     <td className='py-3'>
                       <img 
@@ -991,6 +1041,14 @@ const Employee = () => {
                         >
                           <FaMoneyBill className='text-xs' />
                           <span>Salary</span>
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(employee)}
+                          className='flex items-center space-x-1 text-white px-3 py-1 rounded text-sm transition-colors' 
+                          style={{backgroundColor: '#ef4444'}}
+                        >
+                          <FaTrash className='text-xs' />
+                          <span>Delete</span>
                         </button>
                         <button 
                           onClick={() => openLeavePage(employee)}

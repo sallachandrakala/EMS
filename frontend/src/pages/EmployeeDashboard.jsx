@@ -7,8 +7,8 @@ import {
   FaUser, 
   FaArrowRight
 } from "react-icons/fa";
-import { employeeData, getCurrentEmployee, getEmployeeLeaveRequests, getEmployeeSalaryRecords } from '../data/employeeData';
-import { salaryAPI } from '../services/api';
+import { employeeAPI, salaryAPI, leaveAPI } from '../services/api';
+import { getCurrentEmployee } from '../data/employeeData';
 
 const EmployeeDashboard = () => {
   const { user } = useAuth();
@@ -16,36 +16,53 @@ const EmployeeDashboard = () => {
   const [currentEmployee, setCurrentEmployee] = useState(null);
   const [leaveRequests, setLeaveRequests] = useState([]);
   const [salaryRecords, setSalaryRecords] = useState([]);
+  const [serverStatus, setServerStatus] = useState('connecting'); // 'connecting', 'connected', 'disconnected'
 
   useEffect(() => {
     const loadEmployeeData = async () => {
       const employeeId = user?.employeeId || 'EMP001';
-      const employee = getCurrentEmployee(employeeId);
-      setCurrentEmployee(employee);
-      
-      // Load employee leave requests from local data store
-      const employeeLeaves = getEmployeeLeaveRequests(employeeId);
-      setLeaveRequests(employeeLeaves);
+      setServerStatus('connecting');
       
       try {
-        // Load employee salary records from API
-        const apiSalaries = await salaryAPI.getByEmployeeId(employeeId);
-        console.log('Employee salaries from API:', apiSalaries);
+        console.log('🔄 Loading employee data from server...');
         
-        // Load employee salary records from local data store
-        const localSalaries = getEmployeeSalaryRecords(employeeId);
-        console.log('Employee salaries from local store:', localSalaries);
+        // Load current employee from server
+        const allEmployees = await employeeAPI.getAll();
+        const employee = allEmployees.find(emp => emp.employeeId === employeeId) || getCurrentEmployee(employeeId);
+        setCurrentEmployee(employee);
+        console.log('✅ Employee data loaded:', employee);
         
-        // Combine API and local salary records
-        const combinedSalaries = [...apiSalaries, ...localSalaries];
-        console.log('Combined employee salaries:', combinedSalaries);
+        // Load leave requests from server
+        try {
+          const apiLeaves = await leaveAPI.getByEmployeeId(employeeId);
+          console.log('✅ Leave requests loaded from server:', apiLeaves);
+          setLeaveRequests(apiLeaves);
+        } catch (leaveError) {
+          console.log('⚠️ Could not load leave requests from server:', leaveError.message);
+          setLeaveRequests([]);
+        }
         
-        setSalaryRecords(combinedSalaries);
+        // Load salary records from server
+        try {
+          const apiSalaries = await salaryAPI.getByEmployeeId(employeeId);
+          console.log('✅ Salary records loaded from server:', apiSalaries);
+          setSalaryRecords(apiSalaries);
+        } catch (salaryError) {
+          console.log('⚠️ Could not load salary records from server:', salaryError.message);
+          setSalaryRecords([]);
+        }
+        
+        setServerStatus('connected');
+        console.log('✅ Server connection established successfully');
+        
       } catch (error) {
-        console.error('Error loading employee salary data from API:', error);
-        // Fallback to local data store only
-        const localSalaries = getEmployeeSalaryRecords(employeeId);
-        setSalaryRecords(localSalaries);
+        console.error('❌ Error loading employee data from server:', error);
+        setServerStatus('disconnected');
+        // Fallback to local data store
+        const employee = getCurrentEmployee(employeeId);
+        setCurrentEmployee(employee);
+        setLeaveRequests([]);
+        setSalaryRecords([]);
       }
     };
     
@@ -131,6 +148,23 @@ const EmployeeDashboard = () => {
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">Employee Dashboard</h1>
                 <p className="text-gray-600 mt-1">Welcome back, {currentEmployee?.name || 'Employee'}</p>
+                {/* Server Status Indicator */}
+                <div className="flex items-center mt-2">
+                  <div className={`w-2 h-2 rounded-full mr-2 ${
+                    serverStatus === 'connected' ? 'bg-green-500' :
+                    serverStatus === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+                    'bg-red-500'
+                  }`}></div>
+                  <span className={`text-sm ${
+                    serverStatus === 'connected' ? 'text-green-600' :
+                    serverStatus === 'connecting' ? 'text-yellow-600' :
+                    'text-red-600'
+                  }`}>
+                    {serverStatus === 'connected' ? 'Connected to Server' :
+                     serverStatus === 'connecting' ? 'Connecting to Server...' :
+                     'Server Disconnected'}
+                  </span>
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">Current Date</p>

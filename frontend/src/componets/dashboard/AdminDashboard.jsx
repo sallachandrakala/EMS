@@ -23,7 +23,7 @@ import {
   FaCheck
 } from 'react-icons/fa'
 import { employeeAPI, salaryAPI, leaveAPI, departmentAPI, salaryRequestAPI } from '../../services/api.js'
-import { getAllSalaryRequests, updateSalaryRequestStatus, getEmployeeSalaryRecords, updateSalaryRecord, deleteSalaryRecord, getAllSalaryRecords } from '../../data/employeeData'
+import { getAllSalaryRequests, updateSalaryRequestStatus, getEmployeeSalaryRecords, updateSalaryRecord, deleteSalaryRecord, getAllSalaryRecords, employeeData, getAllLeaveRequests } from '../../data/employeeData'
 
 const AdminDashboard = () => {
   const [userData, setUserData] = useState(null)
@@ -405,6 +405,34 @@ const AdminDashboard = () => {
     }
   }, [])
 
+  // Auto-load local data on component mount
+  useEffect(() => {
+    console.log('=== AUTO-LOADING LOCAL EMPLOYEE DATA ===')
+    console.log('employeeData available:', employeeData)
+    console.log('employeeData length:', employeeData.length)
+    
+    // Load local data immediately as fallback - no conditions
+    try {
+      const localEmployees = employeeData
+      console.log('Auto-loading local employees:', localEmployees.length)
+      console.log('First employee:', localEmployees[0])
+      
+      // Force set employees regardless of current state
+      setEmployees(localEmployees)
+      console.log('✅ Successfully set employees from local data store')
+      
+      // Update stats
+      setStats(prev => ({
+        ...prev,
+        totalEmployees: localEmployees.length
+      }))
+      
+    } catch (error) {
+      console.error('Error auto-loading local employees:', error)
+      alert('❌ Error loading employee data. Check console for details.')
+    }
+  }, [])
+
   const loadDashboardData = async () => {
     try {
       setLoading(true)
@@ -419,8 +447,20 @@ const AdminDashboard = () => {
         salaryRequestAPI.getAll()
       ])
 
-      // Also get local salary requests as backup
+      console.log('=== SERVER DATA LOADED ===')
+      console.log('Employees from server:', employeesData.length)
+      console.log('Departments from server:', departmentsData.length)
+      console.log('Salaries from server:', salariesData.length)
+      console.log('Leaves from server:', leavesData.length)
+      console.log('Salary requests from server:', salaryRequestsData.length)
+
+      // Also get local data as backup
       const localSalaryRequests = getAllSalaryRequests()
+      const localLeaveRequests = getAllLeaveRequests()
+      
+      console.log('=== LOCAL DATA LOADED ===')
+      console.log('Local salary requests:', localSalaryRequests.length)
+      console.log('Local leave requests:', localLeaveRequests.length)
       
       // Normalize server data to match frontend expected format
       const normalizedServerRequests = salaryRequestsData.map(req => ({
@@ -429,14 +469,10 @@ const AdminDashboard = () => {
         status: req.status || 'Pending'
       }))
       
-      console.log('=== SERVER SALARY REQUESTS DEBUG ===')
-      console.log('Raw server requests:', salaryRequestsData)
-      console.log('Normalized server requests:', normalizedServerRequests)
-      console.log('Local salary requests:', localSalaryRequests)
-      console.log('Server requests array length:', normalizedServerRequests.length)
-      console.log('Local requests array length:', localSalaryRequests.length)
-      console.log('Server pending requests:', normalizedServerRequests.filter(req => req.status === 'Pending'))
-      console.log('Local pending requests:', localSalaryRequests.filter(req => req.status === 'Pending'))
+      console.log('=== DATA COMBINATION ===')
+      console.log('Normalized server requests:', normalizedServerRequests.length)
+      console.log('Local salary requests:', localSalaryRequests.length)
+      console.log('Total combined requests:', normalizedServerRequests.length + localSalaryRequests.length)
       
       if (normalizedServerRequests.length > 0) {
         console.log('First server salary request:', normalizedServerRequests[0])
@@ -465,13 +501,7 @@ const AdminDashboard = () => {
       
       // Use server data for salary requests, with local data as backup
       const combinedSalaryRequests = [...normalizedServerRequests, ...localSalaryRequests]
-      // Enrich salary requests with employee data
-      const enrichedSalaryRequests = combinedSalaryRequests.map(request => {
-        // Find matching employee from employees data
-        const matchingEmployee = employeesData.find(emp => 
-          emp.employeeId === request.employeeId || 
-          emp.id === request.employeeId
-        )
+      setSalaryRequests(combinedSalaryRequests)
         
         if (matchingEmployee) {
           console.log(`Found matching employee for request ${request.id}:`, matchingEmployee.name)
@@ -1129,7 +1159,182 @@ const AdminDashboard = () => {
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Employee Management</h2>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <p className="text-gray-600">Employee management interface will be loaded here...</p>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">All Employees</h3>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowAddUser(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaPlus />
+                    <span>Add Employee</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('=== LOADING EMPLOYEES FROM LOCAL DATA STORE ===')
+                      
+                      // Load from local data store as fallback
+                      try {
+                        const localEmployees = employeeData
+                        console.log('Local employees loaded:', localEmployees.length)
+                        setEmployees(localEmployees)
+                        alert(`✅ Loaded ${localEmployees.length} employees from local data store!`)
+                      } catch (error) {
+                        console.error('Error loading local employees:', error)
+                        alert('❌ Failed to load employees from local data store')
+                      }
+                    }}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaSearch />
+                    <span>Load Local</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      console.log('=== TESTING EMPLOYEE API CONNECTION ===')
+                      console.log('Server URL:', 'http://localhost:5000/api/employees')
+                      console.log('Current employees state:', employees.length)
+                      
+                      // Test direct API call with timeout
+                      const controller = new AbortController()
+                      const timeoutId = setTimeout(() => controller.abort(), 5000)
+                      
+                      fetch('http://localhost:5000/api/employees', { signal: controller.signal })
+                        .then(response => {
+                          clearTimeout(timeoutId)
+                          console.log('API Response status:', response.status)
+                          if (!response.ok) throw new Error(`HTTP ${response.status}`)
+                          return response.json()
+                        })
+                        .then(data => {
+                          console.log('API Response data:', data)
+                          console.log('Number of employees from API:', data.length)
+                          setEmployees(data)
+                          alert(`✅ Server Connection Working!\n\nAPI Response: ${data.length} employees found\n\nData loaded successfully!`)
+                        })
+                        .catch(error => {
+                          clearTimeout(timeoutId)
+                          console.error('API Connection Error:', error)
+                          if (error.name === 'AbortError') {
+                            alert('❌ Server Connection Timeout!\n\nServer not responding within 5 seconds.\n\nPlease check:\n1. Server is running (npm start in server folder)\n2. MongoDB is connected\n3. Port 5000 is available\n\nTry "Load Local" button for fallback.')
+                          } else {
+                            alert(`❌ Server Connection Failed!\n\nError: ${error.message}\n\nTry "Load Local" button for fallback data.`)
+                          }
+                        })
+                    }}
+                    className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaSearch />
+                    <span>Test Server</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Debug Info */}
+              <div className="bg-gray-50 p-4 rounded-lg mb-4">
+                <div className="text-sm text-gray-600">
+                  <strong>Debug Info:</strong><br/>
+                  • Employees loaded: {employees.length}<br/>
+                  • Server: http://localhost:5000<br/>
+                  • API: /api/employees<br/>
+                  • Last updated: {new Date().toLocaleTimeString()}<br/>
+                  • Data Source: {employees.length > 0 ? 'Loaded' : 'Not loaded'}<br/>
+                  • Connection: {employees.length > 0 ? 'Working' : 'Check connection'}
+                </div>
+                
+                {/* Quick Debug Actions */}
+                <div className="mt-3 flex space-x-2">
+                  <button
+                    onClick={() => {
+                      console.log('=== EMPLOYEES STATE DEBUG ===')
+                      console.log('Employees array:', employees)
+                      console.log('Employees length:', employees.length)
+                      console.log('First employee:', employees[0])
+                      
+                      if (employees.length === 0) {
+                        console.log('❌ No employees found - try loading from local data store')
+                        const localEmployees = employeeData
+                        console.log('Local employees available:', localEmployees.length)
+                      }
+                    }}
+                    className="text-xs bg-blue-500 text-white px-2 py-1 rounded"
+                  >
+                    Debug State
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      console.log('=== LOADING LOCAL FALLBACK ===')
+                      const localEmployees = employeeData
+                      setEmployees(localEmployees)
+                      console.log('Loaded local employees:', localEmployees.length)
+                    }}
+                    className="text-xs bg-green-500 text-white px-2 py-1 rounded"
+                  >
+                    Load Local
+                  </button>
+                </div>
+              </div>
+              
+              {/* Employees Table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Role</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {filteredEmployees.map((employee) => (
+                      <tr key={employee.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <FaUser className="text-blue-600" />
+                            </div>
+                            <div className="ml-4">
+                              <div className="font-medium text-gray-900">{employee.name}</div>
+                              <div className="text-sm text-gray-500">{employee.employeeId}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{employee.email}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{employee.department}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            employee.role === 'admin' ? 'bg-purple-100 text-purple-800' :
+                            employee.role === 'hr' ? 'bg-green-100 text-green-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {employee.role || 'Employee'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditUser(employee)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(employee.id)}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )
@@ -1139,7 +1344,78 @@ const AdminDashboard = () => {
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Department Management</h2>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <p className="text-gray-600">Department management interface will be loaded here...</p>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">All Departments</h3>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowAddDepartment(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaPlus />
+                    <span>Add Department</span>
+                  </button>
+                  <button
+                    onClick={loadDashboardData}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaSearch />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Departments Table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employees Count</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Manager</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {departments.map((department) => (
+                      <tr key={department.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                              <FaBuilding className="text-green-600" />
+                            </div>
+                            <div className="ml-4">
+                              <div className="font-medium text-gray-900">{department.name}</div>
+                              <div className="text-sm text-gray-500">{department.description || 'No description'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {employees.filter(emp => emp.department === department.name).length}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {department.manager || 'Not assigned'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleEditDepartment(department)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <FaEdit />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteDepartment(department.id)}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              <FaTrash />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )
@@ -1159,7 +1435,101 @@ const AdminDashboard = () => {
           <div className="space-y-6">
             <h2 className="text-3xl font-bold text-gray-800">Leave Management</h2>
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-              <p className="text-gray-600">Leave management interface will be loaded here...</p>
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-lg font-semibold text-gray-800">All Leave Requests</h3>
+                <div className="flex space-x-3">
+                  <button
+                    onClick={() => setShowAddLeave(true)}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaPlus />
+                    <span>Add Leave</span>
+                  </button>
+                  <button
+                    onClick={loadDashboardData}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+                  >
+                    <FaSearch />
+                    <span>Refresh</span>
+                  </button>
+                </div>
+              </div>
+              
+              {/* Leave Requests Table */}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Leave Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Start Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">End Date</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Days</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Reason</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {leaves.map((leave) => (
+                      <tr key={leave.id}>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                              <FaCalendarAlt className="text-blue-600" />
+                            </div>
+                            <div className="ml-4">
+                              <div className="font-medium text-gray-900">{leave.employeeName}</div>
+                              <div className="text-sm text-gray-500">{leave.employeeId}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            leave.type === 'Annual' ? 'bg-purple-100 text-purple-800' :
+                            leave.type === 'Sick' ? 'bg-red-100 text-red-800' :
+                            leave.type === 'Personal' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-blue-100 text-blue-800'
+                          }`}>
+                            {leave.type || 'Leave'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{leave.startDate}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{leave.endDate}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {Math.ceil((new Date(leave.endDate) - new Date(leave.startDate)) / (1000 * 60 * 60 * 24))}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{leave.reason || 'No reason'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm">
+                          <span className={`px-2 py-1 text-xs rounded-full ${
+                            leave.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                            leave.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                            'bg-yellow-100 text-yellow-800'
+                          }`}>
+                            {leave.status || 'Pending'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex space-x-2">
+                            <button
+                              onClick={() => handleApproveLeave(leave.id)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleRejectLeave(leave.id)}
+                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
+                            >
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )

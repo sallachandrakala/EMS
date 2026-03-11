@@ -19,14 +19,23 @@ export const employeeAPI = {
   create: async (employeeData) => {
     try {
       console.log('API: Creating employee with data:', employeeData) // Debug log
+      
+      // Test server connection first
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 3000)
+      
       const response = await fetch(`${API_BASE_URL}/employees`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(employeeData)
+        body: JSON.stringify(employeeData),
+        signal: controller.signal
       })
+      
+      clearTimeout(timeoutId)
       console.log('API: Response status:', response.status) // Debug log
+      
       if (!response.ok) {
         const errorText = await response.text()
         console.error('API: Error response:', errorText) // Debug log
@@ -37,6 +46,16 @@ export const employeeAPI = {
       return result
     } catch (error) {
       console.error('Error creating employee:', error)
+      
+      // Handle connection errors gracefully
+      if (error.name === 'AbortError') {
+        console.log('API: Server connection timeout, falling back to local data')
+        throw new Error('Server connection timeout. Please check if the server is running on http://localhost:5000')
+      } else if (error.message.includes('Failed to fetch')) {
+        console.log('API: Server connection refused, falling back to local data')
+        throw new Error('Server connection refused. Please check if the server is running on http://localhost:5000')
+      }
+      
       throw error
     }
   },

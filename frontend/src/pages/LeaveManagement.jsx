@@ -16,6 +16,7 @@ import {
   FaFileAlt,
   FaUser
 } from 'react-icons/fa'
+import { leaveAPI } from '../services/api'
 
 const LeaveManagement = () => {
   const { user, updateUser } = useAuth()
@@ -60,28 +61,29 @@ const LeaveManagement = () => {
     })
   }, [user])
 
-  const loadLeaves = () => {
-    console.log('=== LOADING LEAVE DATA (SHOW ALL REQUESTS) ===')
+  const loadLeaves = async () => {
+    console.log('=== LOADING LEAVE DATA FROM SERVER ===')
     
-    // ONLY load from localStorage - same as salary system
-    const storedLeaves = localStorage.getItem('leaveRequests')
-    const leaves = storedLeaves ? JSON.parse(storedLeaves) : []
-    console.log('Loaded leave requests from localStorage:', leaves.length)
-    console.log('All leave requests:', leaves)
-    
-    // SHOW ALL REQUESTS - Don't filter by employeeId
-    // This allows employees to see all requests they create, regardless of the ID they enter
-    const sortedLeaves = leaves.sort((a, b) => {
-      const dateA = new Date(a.appliedDate || a.submittedAt || 0)
-      const dateB = new Date(b.appliedDate || b.submittedAt || 0)
-      return dateB - dateA
-    })
-    
-    console.log('Total leave data to display:', sortedLeaves.length, 'requests')
-    
-    // If no data in localStorage, show empty (don't use hardcoded data)
-    setLeaves(sortedLeaves)
-    setLoading(false)
+    try {
+      // Load from server API
+      const leavesData = await leaveAPI.getAll()
+      console.log('✅ Loaded leave requests from server:', leavesData.length)
+      
+      // SHOW ALL REQUESTS - Don't filter by employeeId
+      const sortedLeaves = leavesData.sort((a, b) => {
+        const dateA = new Date(a.appliedDate || a.submittedAt || 0)
+        const dateB = new Date(b.appliedDate || b.submittedAt || 0)
+        return dateB - dateA
+      })
+      
+      console.log('Total leave data to display:', sortedLeaves.length, 'requests')
+      setLeaves(sortedLeaves)
+    } catch (error) {
+      console.error('❌ Failed to load leaves from server:', error)
+      setLeaves([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleSubmit = (e) => {
