@@ -1,21 +1,20 @@
 import React, { useState, useEffect } from 'react'
 import { FaUser, FaMoneyBillWave, FaCalendarAlt, FaCog, FaSignOutAlt, FaHome, FaCamera, FaTimes, FaPlus, FaClock, FaCheckCircle } from 'react-icons/fa'
-import { employeeAPI, salaryAPI, leaveAPI } from '../../services/api.js'
 
 const UserDashboard = () => {
   const [userData, setUserData] = useState(null)
   const [activeSection, setActiveSection] = useState('dashboard')
   const [profileImage, setProfileImage] = useState(null)
-  const [stats, setStats] = useState({ userSalary: 0, userLeaves: 0 })
-
-  useEffect(() => {
-    loadUserData()
-  }, [])
+  const [stats] = useState({ userSalary: 0, userLeaves: 0 })
 
   const loadUserData = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     setUserData(user)
   }
+
+  useEffect(() => {
+    loadUserData()
+  }, [])
 
   const handleImageUpload = (event) => {
     const file = event.target.files[0]

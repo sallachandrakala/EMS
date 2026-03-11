@@ -4,6 +4,8 @@ import AdminDashboard from "./pages/AdminDashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import EmployeeProfile from "./pages/EmployeeProfile";
 import SalaryManagement from "./pages/SalaryManagement";
+import LeaveManagement from "./pages/LeaveManagement";
+import AllEmployeesDashboard from "./pages/AllEmployeesDashboard";
 import SalaryCards from "./componets/dashboard/SalaryCards";
 import { useAuth } from "./context/authContext";
 
@@ -43,6 +45,14 @@ function App() {
           }
         />
         <Route
+          path="/all-employees"
+          element={
+            <RequireAuth>
+              <AllEmployeesDashboard />
+            </RequireAuth>
+          }
+        />
+        <Route
           path="/employee-dashboard"
           element={
             <RequireAuth>
@@ -78,7 +88,7 @@ function App() {
           path="/leave-management"
           element={
             <RequireAuth>
-              <EmployeeDashboard />
+              <LeaveManagement />
             </RequireAuth>
           }
         />

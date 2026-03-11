@@ -53,12 +53,26 @@ router.put("/:id", async (req, res) => {
 // Delete salary record
 router.delete("/:id", async (req, res) => {
     try {
+        console.log('Attempting to delete salary with ID:', req.params.id);
+        
+        // Check if ID is a valid MongoDB ObjectId format
+        const isValidObjectId = req.params.id.length === 24 && /^[0-9a-fA-F]{24}$/.test(req.params.id);
+        
+        if (!isValidObjectId) {
+            console.log('Invalid ObjectId format provided:', req.params.id);
+            return res.status(400).json({ error: "Invalid ID format. Expected MongoDB ObjectId." });
+        }
+        
         const salary = await Salary.findByIdAndDelete(req.params.id);
         if (!salary) {
+            console.log('Salary record not found with ID:', req.params.id);
             return res.status(404).json({ error: "Salary record not found" });
         }
+        
+        console.log('Salary record deleted successfully:', salary._id);
         res.json({ message: "Salary record deleted successfully" });
     } catch (error) {
+        console.error('Error deleting salary record:', error);
         res.status(500).json({ error: error.message });
     }
 });

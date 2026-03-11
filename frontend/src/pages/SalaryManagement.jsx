@@ -1,271 +1,395 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/authContext'
-import {
-  FaMoneyBillWave,
-  FaPlus,
-  FaEdit,
-  FaTrash,
-  FaSearch,
+import { 
+  FaMoneyBillWave, 
+  FaPlus, 
+  FaEdit, 
+  FaTrash, 
+  FaEye, 
   FaFilter,
   FaDownload,
+  FaSearch,
+  FaBuilding,
   FaCalendarAlt,
   FaUser,
-  FaBuilding,
-  FaEnvelope,
-  FaPhone,
-  FaSave,
-  FaTimes,
-  FaEye
+  FaSave
 } from 'react-icons/fa'
-import { salaryAPI, employeeAPI } from '../services/api'
 
 const SalaryManagement = () => {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
   const navigate = useNavigate()
   const [salaries, setSalaries] = useState([])
-  const [employees, setEmployees] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
   const [editingSalary, setEditingSalary] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [filterDepartment, setFilterDepartment] = useState('all')
-  const [formData, setFormData] = useState({
-    employeeId: user?.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-    employeeName: user?.name || 'Employee',
+  const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [profileData, setProfileData] = useState({
+    employeeId: user?.employeeId || 'EMP001',
+    name: user?.name || 'Employee',
     email: user?.email || 'employee@company.com',
-    phone: '',
     department: user?.department || 'IT',
-    basicSalary: '',
-    allowances: '',
-    deductions: '',
-    payDate: '',
-    effectiveDate: '',
-    paymentMethod: 'Bank Transfer',
-    status: 'Active',
-    notes: ''
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   })
 
+  // Load data from localStorage on component mount
   useEffect(() => {
-    // Only allow employees to access their own salary data
-    if (user?.role === 'admin') {
-      navigate('/admin-dashboard')
-      return
-    }
     loadData()
-  }, [user, navigate])
+    // Update profile data when user changes
+    setProfileData({
+      employeeId: user?.employeeId || 'EMP001',
+      name: user?.name || 'Employee',
+      email: user?.email || 'employee@company.com',
+      department: user?.department || 'IT',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    })
+  }, [user])
 
-  const loadData = async () => {
+  const loadData = () => {
+    console.log('=== LOADING DATA (SHOW ALL REQUESTS) ===')
+    
+    // ONLY load from localStorage - ignore imported data files
+    const storedRecords = localStorage.getItem('salaryRecords')
+    const records = storedRecords ? JSON.parse(storedRecords) : []
+    console.log('Loaded records from localStorage:', records.length)
+    
+    const storedRequests = localStorage.getItem('salaryRequests')
+    const requests = storedRequests ? JSON.parse(storedRequests) : []
+    console.log('Loaded requests from localStorage:', requests.length)
+    console.log('All requests:', requests)
+    
+    // SHOW ALL REQUESTS - Don't filter by employeeId
+    // This allows employees to see all requests they create, regardless of the ID they enter
+    const allSalaryData = [...records, ...requests].sort((a, b) => {
+      const dateA = new Date(a.effectiveDate || a.requestedDate || 0)
+      const dateB = new Date(b.effectiveDate || b.requestedDate || 0)
+      return dateB - dateA
+    })
+    
+    console.log('Total salary data to display:', allSalaryData.length, 'records')
+    console.log('Salary data:', allSalaryData)
+    
+    // If no data in localStorage, show empty (don't use hardcoded data)
+    setSalaries(allSalaryData)
+    setLoading(false)
+  }
+
+  const handleProfileUpdate = (e) => {
+    e.preventDefault()
+    
     try {
-      setLoading(true)
-      console.log('Loading salary data from API...')
-      
-      // First try to load from API
-      const salariesResponse = await salaryAPI.getAll()
-      console.log('Salaries API response:', salariesResponse)
-      
-      const userSalaries = salariesResponse.data?.filter(salary => 
-        salary.employeeId === user?.employeeId || 
-        salary.employeeName === user?.name ||
-        salary.email === user?.email
-      ) || []
-      
-      console.log('Filtered user salaries:', userSalaries)
-      
-      // If API has data, use it
-      if (userSalaries.length > 0) {
-        setSalaries(userSalaries)
-      } else {
-        // Try to load from employee-specific localStorage as fallback
-        const localSalaries = localStorage.getItem(`employee_salaries_${user?.email}`)
-        if (localSalaries) {
-          const parsedSalaries = JSON.parse(localSalaries)
-          console.log('Loaded salaries from employee localStorage:', parsedSalaries)
-          setSalaries(parsedSalaries)
-        } else {
-          setSalaries([])
+      // Validate password if changing
+      if (profileData.newPassword || profileData.confirmPassword) {
+        if (!profileData.currentPassword) {
+          alert('Please enter your current password to change it.')
+          return
+        }
+        if (profileData.newPassword !== profileData.confirmPassword) {
+          alert('New passwords do not match!')
+          return
+        }
+        if (profileData.newPassword.length < 6) {
+          alert('New password must be at least 6 characters long.')
+          return
         }
       }
       
-      // Only load current employee's data
-      const employeesResponse = await employeeAPI.getAll()
-      console.log('Employees API response:', employeesResponse)
+      // Prepare updated user data
+      const updatedData = {
+        employeeId: profileData.employeeId,
+        name: profileData.name,
+        email: profileData.email,
+        department: profileData.department
+      }
       
-      const currentUser = employeesResponse.data?.find(emp => 
-        emp.employeeId === user?.employeeId || 
-        emp.name === user?.name ||
-        emp.email === user?.email
-      )
+      console.log('=== PROFILE UPDATE ===')
+      console.log('Current user:', user)
+      console.log('Updated data:', updatedData)
       
-      if (currentUser) {
-        setEmployees([currentUser])
-        setFormData(prev => ({
-          ...prev,
-          employeeId: currentUser.employeeId,
-          employeeName: currentUser.name,
-          email: currentUser.email,
-          phone: currentUser.phone || '',
-          department: currentUser.department
-        }))
+      // Update password if provided
+      if (profileData.newPassword) {
+        // Verify current password (simple check)
+        if (user?.password && user.password !== profileData.currentPassword) {
+          alert('❌ Current password is incorrect!')
+          return
+        }
+        updatedData.password = profileData.newPassword
+      }
+      
+      // Update user in auth context and localStorage
+      if (updateUser) {
+        const result = updateUser(updatedData)
+        console.log('Updated user via context:', result)
       } else {
-        // Fallback: Use user context data
-        setFormData(prev => ({
-          ...prev,
-          employeeId: user?.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-          employeeName: user?.name || 'Employee',
-          email: user?.email || 'employee@company.com',
-          department: user?.department || 'IT'
-        }))
+        // Fallback if updateUser is not available
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          const userData = JSON.parse(storedUser)
+          const updatedUser = { ...userData, ...updatedData }
+          localStorage.setItem('user', JSON.stringify(updatedUser))
+          console.log('Updated user via localStorage:', updatedUser)
+        }
+      }
+      
+      // Verify the update
+      const verifyUser = localStorage.getItem('user')
+      console.log('Verified user in localStorage:', verifyUser ? JSON.parse(verifyUser) : null)
+      
+      const message = profileData.newPassword 
+        ? '✅ Profile and password updated successfully! Please login again with your new credentials.' 
+        : '✅ Profile updated successfully!'
+      
+      alert(message)
+      setShowProfileEdit(false)
+      
+      // Reset password fields
+      setProfileData({
+        ...profileData,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+      
+      // If password was changed, logout and redirect to login
+      if (profileData.newPassword) {
+        setTimeout(() => {
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+        }, 1000)
+      } else {
+        // Just reload to show updated info
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
       }
     } catch (error) {
-      console.error('Failed to load data:', error)
-      // Fallback data for testing when API fails
-      console.log('Using fallback data due to API failure')
-      
-      // Try localStorage first
-      const localSalaries = localStorage.getItem(`employee_salaries_${user?.email}`)
-      if (localSalaries) {
-        const parsedSalaries = JSON.parse(localSalaries)
-        setSalaries(parsedSalaries)
-      } else {
-        setSalaries([])
-      }
-      
-      setEmployees([{
-        employeeId: user?.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-        name: user?.name || 'Current User',
-        email: user?.email || 'employee@company.com',
-        department: user?.department || 'IT',
-        phone: ''
-      }])
-      
-      // Set form with user context data
-      setFormData(prev => ({
-        ...prev,
-        employeeId: user?.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-        employeeName: user?.name || 'Employee',
-        email: user?.email || 'employee@company.com',
-        department: user?.department || 'IT'
-      }))
-    } finally {
-      setLoading(false)
+      console.error('Failed to update profile:', error)
+      alert('❌ Failed to update profile. Please try again.')
     }
   }
 
-  const handleSubmit = async (e) => {
+  const [filterDepartment, setFilterDepartment] = useState('all')
+  const [formData, setFormData] = useState({
+    employeeId: '',
+    employeeName: '',
+    email: '',
+    phone: '',
+    department: '',
+    basicSalary: '',
+    allowances: '',
+    deductions: '',
+    netSalary: '',
+    effectiveDate: '',
+    paymentMethod: 'Bank Transfer',
+    notes: ''
+  })
+
+  const resetForm = () => {
+    setFormData({
+      employeeId: '',
+      employeeName: '',
+      email: '',
+      phone: '',
+      department: '',
+      basicSalary: '',
+      allowances: '',
+      deductions: '',
+      netSalary: '',
+      effectiveDate: '',
+      paymentMethod: 'Bank Transfer',
+      notes: ''
+    })
+  }
+
+  const handleSubmit = (e) => {
     e.preventDefault()
-    try {
-      const basicSalary = parseFloat(formData.basicSalary) || 0
-      const allowances = parseFloat(formData.allowances) || 0
-      const deductions = parseFloat(formData.deductions) || 0
-      const netSalary = basicSalary + allowances - deductions
-
-      // Ensure required fields are present
-      const employeeId = user?.employeeId || formData.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`
-      const email = user?.email || formData.email || 'employee@company.com'
-
-      // Only allow creating/updating own salary record
-      const salaryData = {
-        ...formData,
-        basicSalary: basicSalary,
-        allowances: allowances,
-        deductions: deductions,
-        netSalary: netSalary,
-        employeeId: employeeId, // Ensure this is always present
-        employeeName: user?.name || formData.employeeName || 'Employee',
-        email: email, // Ensure this is always present
-        department: user?.department || formData.department || 'IT',
-        payDate: formData.payDate || new Date().toISOString().split('T')[0],
-        effectiveDate: formData.effectiveDate || new Date().toISOString().split('T')[0],
-        paymentMethod: formData.paymentMethod || 'Bank Transfer',
-        status: 'Active'
-        // Remove _id - let MongoDB generate it automatically
-      }
-
-      console.log('Submitting salary data:', salaryData)
-      console.log('Current salaries state:', salaries)
+    
+    console.log('🔵 FORM SUBMITTED')
+    console.log('Form data:', formData)
+    console.log('Editing salary:', editingSalary)
+    console.log('Current user:', user)
+    
+    // Validate required fields
+    if (!formData.employeeId || !formData.employeeName || !formData.email || !formData.department || !formData.basicSalary) {
+      alert('❌ Please fill in all required fields:\n- Employee ID\n- Employee Name\n- Email\n- Department\n- Basic Salary')
+      console.error('❌ Validation failed - missing required fields')
+      return
+    }
+    
+    if (editingSalary) {
+      console.log('=== UPDATING EXISTING SALARY RECORD ===')
+      console.log('Editing salary:', editingSalary)
       console.log('Form data:', formData)
-
-      if (editingSalary) {
-        // Only allow editing own records
-        if (editingSalary.employeeId !== user?.employeeId) {
-          alert('You can only edit your own salary records!')
-          return
+      console.log('Employee Name in form:', formData.employeeName)
+      
+      try {
+        // Calculate net salary
+        const netSalary = parseFloat(formData.basicSalary || 0) + parseFloat(formData.allowances || 0) - parseFloat(formData.deductions || 0)
+        
+        const updatedData = {
+          employeeId: formData.employeeId,
+          employeeName: formData.employeeName,
+          email: formData.email,
+          department: formData.department,
+          basicSalary: parseFloat(formData.basicSalary || 0),
+          allowances: parseFloat(formData.allowances || 0),
+          deductions: parseFloat(formData.deductions || 0),
+          netSalary: netSalary,
+          effectiveDate: formData.effectiveDate,
+          paymentMethod: formData.paymentMethod,
+          notes: formData.notes
         }
-        console.log('Updating salary record...')
-        try {
-          await salaryAPI.update(editingSalary._id, salaryData)
-          alert('Your salary record updated successfully!')
-        } catch (apiError) {
-          console.warn('API update failed, using local fallback:', apiError)
-          // Local fallback with localStorage persistence
-          setSalaries(prev => {
-            const newSalaries = prev.map(s => s._id === editingSalary._id ? salaryData : s)
-            console.log('Updated salaries:', newSalaries)
-            
-            // Save to localStorage for persistence
-            localStorage.setItem(`employee_salaries_${user?.email}`, JSON.stringify(newSalaries))
-            console.log('Updated employee localStorage:', newSalaries)
-            
-            return newSalaries
+        
+        console.log('Updated data to save:', updatedData)
+        
+        const salaryId = editingSalary._id || editingSalary.id
+        console.log('Updating salary with ID:', salaryId)
+        
+        // Update in localStorage - salaryRequests
+        const storedRequests = localStorage.getItem('salaryRequests')
+        if (storedRequests) {
+          const requests = JSON.parse(storedRequests)
+          console.log('Current requests before update:', requests)
+          
+          const updatedRequests = requests.map(r => {
+            if (r._id === salaryId || r.id === salaryId) {
+              console.log('Found matching request, updating...')
+              console.log('Old data:', r)
+              const updated = { ...r, ...updatedData }
+              console.log('New data:', updated)
+              return updated
+            }
+            return r
           })
-          alert('Your salary record updated locally!')
+          
+          localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
+          console.log('✅ Updated salaryRequests in localStorage')
+          console.log('Updated requests:', updatedRequests)
         }
-      } else {
-        console.log('Creating new salary record...')
-        try {
-          await salaryAPI.create(salaryData)
-          alert('Your salary record created successfully!')
-        } catch (apiError) {
-          console.warn('API create failed, using local fallback:', apiError)
-          console.log('Adding salary data to local state:', salaryData)
-          // Local fallback with localStorage persistence - add _id for local storage
-          const localSalaryData = {
-            ...salaryData,
-            _id: Date.now().toString() // Add _id only for local storage
-          }
-          setSalaries(prev => {
-            const newSalaries = [...prev, localSalaryData]
-            console.log('New salaries after adding:', newSalaries)
-            
-            // Save to localStorage for persistence
-            localStorage.setItem(`employee_salaries_${user?.email}`, JSON.stringify(newSalaries))
-            console.log('Saved to employee localStorage:', newSalaries)
-            
-            return newSalaries
-          })
-          alert('Your salary record created locally!')
+        
+        // Update in localStorage - salaryRecords
+        const storedRecords = localStorage.getItem('salaryRecords')
+        if (storedRecords) {
+          const records = JSON.parse(storedRecords)
+          const updatedRecords = records.map(r => 
+            (r._id === salaryId || r.id === salaryId) 
+              ? { ...r, ...updatedData } 
+              : r
+          )
+          localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
+          console.log('✅ Updated salaryRecords in localStorage')
         }
+        
+        alert('✅ Salary request updated successfully! Name: ' + updatedData.employeeName)
+        setShowAddForm(false)
+        setEditingSalary(null)
+        resetForm()
+        
+        // Reload data
+        loadData()
+        
+        // Notify admin dashboard
+        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+      } catch (error) {
+        console.error('Update failed:', error)
+        alert('❌ Failed to update salary request!')
       }
-
-      setShowAddForm(false)
-      setEditingSalary(null)
-      resetForm()
+    } else {
+      console.log('Creating new salary request...')
       
-      // Don't reload data - let the local state update take effect
-      console.log('Salary record saved successfully!')
-    } catch (error) {
-      console.error('Failed to save salary:', error)
-      console.error('Error details:', error.message)
+      console.log('=== FORM DATA DETAILS ===')
+      console.log('Employee ID from form:', formData.employeeId)
+      console.log('Employee Name from form:', formData.employeeName)
+      console.log('Email from form:', formData.email)
+      console.log('Department from form:', formData.department)
       
-      // Provide more specific error messages
-      if (error.message.includes('email') || error.message.includes('employeeId')) {
-        alert('Required fields missing. Please ensure all required fields are filled.')
-      } else if (error.message.includes('500')) {
-        alert('Server error occurred. Please try again later.')
-      } else {
-        alert('Failed to save salary. Please try again.')
+      // Calculate net salary
+      const netSalary = parseFloat(formData.basicSalary || 0) + parseFloat(formData.allowances || 0) - parseFloat(formData.deductions || 0)
+      
+      const newRequestData = {
+        id: Date.now(),
+        _id: Date.now().toString(),
+        employeeId: formData.employeeId,
+        employeeName: formData.employeeName,
+        email: formData.email,
+        department: formData.department,
+        basicSalary: parseFloat(formData.basicSalary || 0),
+        allowances: parseFloat(formData.allowances || 0),
+        deductions: parseFloat(formData.deductions || 0),
+        netSalary: netSalary,
+        effectiveDate: formData.effectiveDate || new Date().toISOString().split('T')[0],
+        requestedDate: new Date().toISOString().split('T')[0],
+        paymentMethod: formData.paymentMethod || 'Bank Transfer',
+        notes: formData.notes || '',
+        status: 'Pending',
+        submittedBy: 'employee',
+        submittedAt: new Date().toISOString()
+      }
+      
+      console.log('=== NEW SALARY REQUEST DATA ===')
+      console.log('Form Data:', formData)
+      console.log('Request Data to save:', newRequestData)
+      console.log('Employee Name in request:', newRequestData.employeeName)
+      
+      try {
+        console.log('=== CREATING NEW SALARY REQUEST ===')
+        console.log('Request data:', newRequestData)
+        
+        // Save directly to localStorage
+        const storedRequests = localStorage.getItem('salaryRequests')
+        const requests = storedRequests ? JSON.parse(storedRequests) : []
+        
+        console.log('📦 Current requests in localStorage:', requests.length)
+        
+        requests.push(newRequestData)
+        localStorage.setItem('salaryRequests', JSON.stringify(requests))
+        
+        console.log('✅ Saved to localStorage:', requests.length, 'total requests')
+        console.log('📝 Last saved request:', requests[requests.length - 1])
+        console.log('👤 Employee name:', requests[requests.length - 1].employeeName)
+        console.log('🆔 Employee ID:', requests[requests.length - 1].employeeId)
+        console.log('💰 Net Salary:', requests[requests.length - 1].netSalary)
+        console.log('📅 Effective Date:', requests[requests.length - 1].effectiveDate)
+        console.log('� Status:', requests[requests.length - 1].status)
+        
+        // Verify it was saved
+        const verifyRequests = JSON.parse(localStorage.getItem('salaryRequests') || '[]')
+        console.log('🔍 Verification - Total requests in storage:', verifyRequests.length)
+        
+        alert('✅ Salary request submitted successfully!\n\nName: ' + newRequestData.employeeName + '\nAmount: $' + newRequestData.netSalary.toLocaleString() + '\n\nAdmin will review your request.')
+        
+        // Dispatch event to notify admin dashboard
+        console.log('📡 Dispatching newSalaryRequest event to admin dashboard...')
+        window.dispatchEvent(new CustomEvent('newSalaryRequest', { 
+          detail: { request: newRequestData } 
+        }))
+        
+        // Also dispatch salaryDataUpdated for good measure
+        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+        
+        console.log('✅ Events dispatched successfully')
+        
+        // Reset form
+        resetForm()
+        setShowAddForm(false)
+        
+        // Reload data to show the new request
+        loadData()
+      } catch (error) {
+        console.error('❌ Error submitting salary request:', error)
+        alert('❌ Failed to submit salary request! Error: ' + error.message)
       }
     }
   }
 
   const handleEdit = (salary) => {
-    // Only allow editing own records
-    if (salary.employeeId !== user?.employeeId) {
-      alert('You can only edit your own salary records!')
-      return
-    }
-    
+    console.log('=== EDIT BUTTON CLICKED ===')
+    console.log('Salary to edit:', salary)
     setEditingSalary(salary)
     setFormData({
       employeeId: salary.employeeId,
@@ -273,257 +397,627 @@ const SalaryManagement = () => {
       email: salary.email,
       phone: salary.phone || '',
       department: salary.department,
-      basicSalary: salary.basicSalary.toString(),
-      allowances: salary.allowances.toString(),
-      deductions: salary.deductions.toString(),
-      payDate: salary.payDate || '',
-      effectiveDate: salary.effectiveDate || '',
+      basicSalary: salary.basicSalary,
+      allowances: salary.allowances,
+      deductions: salary.deductions,
+      netSalary: salary.netSalary,
+      effectiveDate: salary.effectiveDate,
       paymentMethod: salary.paymentMethod || 'Bank Transfer',
-      status: salary.status || 'Active',
       notes: salary.notes || ''
     })
     setShowAddForm(true)
   }
 
-  const handleDelete = async (id) => {
-    const salary = salaries.find(s => s._id === id)
-    // Only allow deleting own records
-    if (salary?.employeeId !== user?.employeeId) {
-      alert('You can only delete your own salary records!')
-      return
-    }
+  const handleDelete = (salary) => {
+    console.log('=== DELETE BUTTON CLICKED ===')
+    console.log('Salary to delete:', salary)
     
-    if (window.confirm('Are you sure you want to delete your salary record?')) {
+    if (window.confirm(`Are you sure you want to delete this salary request for ${salary.employeeName}?`)) {
       try {
-        await salaryAPI.delete(id)
-        alert('Your salary record deleted successfully!')
+        // Delete from localStorage
+        const storedRequests = localStorage.getItem('salaryRequests')
+        const storedRecords = localStorage.getItem('salaryRecords')
+        
+        if (storedRequests) {
+          const requests = JSON.parse(storedRequests)
+          const updatedRequests = requests.filter(r => 
+            (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
+          )
+          localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
+          console.log('Deleted from salaryRequests. Remaining:', updatedRequests.length)
+        }
+        
+        if (storedRecords) {
+          const records = JSON.parse(storedRecords)
+          const updatedRecords = records.filter(r => 
+            (r.id !== salary.id && r._id !== salary._id && r.id !== salary._id && r._id !== salary.id)
+          )
+          localStorage.setItem('salaryRecords', JSON.stringify(updatedRecords))
+          console.log('Deleted from salaryRecords. Remaining:', updatedRecords.length)
+        }
+        
+        // Update state
+        const updatedSalaries = salaries.filter(s => 
+          (s.id !== salary.id && s._id !== salary._id && s.id !== salary._id && s._id !== salary.id)
+        )
+        setSalaries(updatedSalaries)
+        
+        alert('✅ Salary request deleted successfully!')
+        
+        // Notify admin dashboard
+        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+        
+        // Reload data
         loadData()
       } catch (error) {
         console.error('Failed to delete salary:', error)
-        alert('Failed to delete salary record.')
+        alert('❌ Failed to delete salary request!')
       }
     }
   }
 
-  const resetForm = () => {
-    setFormData({
-      employeeId: user?.employeeId || `EMP${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`,
-      employeeName: user?.name || 'Employee',
-      email: user?.email || 'employee@company.com',
-      phone: '',
-      department: user?.department || 'IT',
-      basicSalary: '',
-      allowances: '',
-      deductions: '',
-      payDate: '',
-      effectiveDate: '',
-      paymentMethod: 'Bank Transfer',
-      status: 'Active',
-      notes: ''
-    })
-  }
-
-  // Test function to verify local storage
-  const testLocalStorage = () => {
-    const testData = {
-      employeeId: user?.employeeId || 'TEST001',
-      employeeName: user?.name || 'Test User',
-      email: user?.email || 'test@example.com',
-      department: user?.department || 'IT',
-      basicSalary: 5000,
-      allowances: 1000,
-      deductions: 500,
-      netSalary: 5500,
-      payDate: new Date().toISOString().split('T')[0],
-      effectiveDate: new Date().toISOString().split('T')[0],
-      paymentMethod: 'Bank Transfer',
-      status: 'Active'
-      // Remove _id - let MongoDB generate it automatically
-    }
-    
-    console.log('Test data being added:', testData)
-    setSalaries(prev => {
-      const newSalaries = [...prev, testData]
-      console.log('Test - New salaries:', newSalaries)
-      
-      // Save to localStorage for persistence
-      localStorage.setItem(`employee_salaries_${user?.email}`, JSON.stringify(newSalaries))
-      console.log('Test - Saved to employee localStorage:', newSalaries)
-      
-      return newSalaries
-    })
-    alert('Test salary record added and saved!')
-  }
-
-  // Only show current employee's salaries
   const filteredSalaries = salaries.filter(salary => {
-    const matchesSearch = salary.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         salary.employeeId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         salary.department?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesSearch = searchTerm === '' || 
+      salary.employeeName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      salary.department?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      salary.basicSalary?.toString().includes(searchTerm)
+    
     const matchesDepartment = filterDepartment === 'all' || salary.department === filterDepartment
-    // Only show own records
-    const isOwnRecord = salary.employeeId === user?.employeeId || 
-                       salary.employeeName === user?.name ||
-                       salary.email === user?.email
-    return matchesSearch && matchesDepartment && isOwnRecord
+    
+    return matchesSearch && matchesDepartment
   })
-
-  const totalSalary = filteredSalaries.reduce((sum, salary) => sum + (salary.netSalary || 0), 0)
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-        <div className="text-gray-600">Loading your salary information...</div>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500"></div>
       </div>
     )
   }
 
+  const handleClearAllData = () => {
+    if (window.confirm('⚠️ WARNING: This will permanently delete ALL salary data (Admin + Employee) from EVERYWHERE. This action cannot be undone. Are you sure?')) {
+      if (window.confirm('🚨 FINAL CONFIRMATION: ALL salary data from ALL users will be deleted from localStorage. Click OK to proceed.')) {
+        try {
+          console.log('=== CLEARING ALL SALARY DATA (COMPLETE WIPE) ===')
+          
+          // Clear ALL salary-related data from localStorage
+          localStorage.removeItem('salaryRequests')
+          localStorage.removeItem('salaryRecords')
+          localStorage.removeItem('admin_dashboard_salaries')
+          localStorage.removeItem('salary_requests') // Alternative key
+          localStorage.removeItem('employeeSalaries')
+          localStorage.removeItem('adminSalaries')
+          
+          console.log('✅ Removed all salary keys from localStorage')
+          
+          // Verify they're gone
+          console.log('Verification:')
+          console.log('- salaryRequests:', localStorage.getItem('salaryRequests'))
+          console.log('- salaryRecords:', localStorage.getItem('salaryRecords'))
+          console.log('- admin_dashboard_salaries:', localStorage.getItem('admin_dashboard_salaries'))
+          
+          // Update state to empty
+          setSalaries([])
+          
+          // Force reload the page to clear any cached data
+          alert('✅ All salary data has been cleared!\n\nPage will reload to ensure clean state.')
+          
+          // Notify admin dashboard BEFORE reload
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+          window.dispatchEvent(new CustomEvent('clearAllSalaryData'))
+          
+          // Reload page after short delay
+          setTimeout(() => {
+            window.location.reload()
+          }, 1000)
+          
+        } catch (error) {
+          console.error('Failed to clear data:', error)
+          alert('❌ Failed to clear salary data! Error: ' + error.message)
+        }
+      }
+    }
+  }
+
   return (
-    <div className="min-h-screen bg-gray-100">
-      <div className="p-8 bg-white">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">My Salary Management</h1>
-          </div>
-          <div className="flex space-x-3">
-            <button
-              onClick={() => navigate('/employee-dashboard')}
-              className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Back to Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/salary-dashboard')}
-              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Salary Dashboard
-            </button>
-            <button
-              onClick={testLocalStorage}
-              className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg transition-colors"
-            >
-              Test Local Storage
-            </button>
-            <button
-              onClick={() => {
-                resetForm()
-                setShowAddForm(true)
-              }}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center"
-            >
-              <FaPlus className="mr-2" />
-              Add My Salary Record
-            </button>
-          </div>
-        </div>
-
-        {/* Statistics Cards - Only for current employee */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">My Salary Records</p>
-                <p className="text-2xl font-bold text-gray-900">{filteredSalaries.length}</p>
-              </div>
-              <FaUser className="text-blue-600 text-2xl" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">My Net Salary</p>
-                <p className="text-2xl font-bold text-gray-900">${totalSalary.toLocaleString()}</p>
-              </div>
-              <FaMoneyBillWave className="text-green-600 text-2xl" />
-            </div>
-          </div>
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-600 font-medium">Status</p>
-                <p className="text-2xl font-bold text-gray-900">
-                  {filteredSalaries.find(s => s.status === 'Active') ? 'Active' : 'No Records'}
-                </p>
-              </div>
-              <FaCalendarAlt className="text-teal-600 text-2xl" />
-            </div>
-          </div>
-        </div>
-
-        {/* Filters - Simplified for personal use */}
-        <div className="flex flex-wrap gap-4 mb-6">
-          <div className="flex-1 min-w-64">
-            <input
-              type="text"
-              placeholder="Search your salary records..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <button className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors flex items-center">
-            <FaDownload className="mr-2" />
-            Export My Data
+    <div className="space-y-6 p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-3xl font-bold text-gray-800">Salary Management</h1>
+        <div className="flex space-x-3">
+          <button
+            onClick={() => {
+              const requests = localStorage.getItem('salaryRequests')
+              const records = localStorage.getItem('salaryRecords')
+              const adminSalaries = localStorage.getItem('admin_dashboard_salaries')
+              
+              console.log('=== STORAGE DEBUG ===')
+              console.log('salaryRequests:', requests ? JSON.parse(requests) : 'EMPTY')
+              console.log('salaryRecords:', records ? JSON.parse(records) : 'EMPTY')
+              console.log('admin_dashboard_salaries:', adminSalaries ? JSON.parse(adminSalaries) : 'EMPTY')
+              
+              const reqCount = requests ? JSON.parse(requests).length : 0
+              const recCount = records ? JSON.parse(records).length : 0
+              const adminCount = adminSalaries ? JSON.parse(adminSalaries).length : 0
+              
+              alert(`📊 Storage Status:\n\n` +
+                    `Salary Requests: ${reqCount}\n` +
+                    `Salary Records: ${recCount}\n` +
+                    `Admin Salaries: ${adminCount}\n\n` +
+                    `Total: ${reqCount + recCount + adminCount}\n\n` +
+                    `Check console (F12) for details.`)
+            }}
+            className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+          >
+            <FaSearch />
+            <span>Check Storage</span>
+          </button>
+          <button
+            onClick={handleClearAllData}
+            className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+          >
+            <FaTrash />
+            <span>Clear All Data</span>
+          </button>
+          <button
+            onClick={() => {
+              resetForm()
+              setShowAddForm(true)
+            }}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2"
+          >
+            <FaPlus />
+            <span>Add Request</span>
           </button>
         </div>
+      </div>
 
-        {/* Salary Table - Only user's records */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Employee Profile Card */}
+      <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-6 rounded-lg shadow-md border-2 border-purple-300 mb-6">
+        <div className="flex justify-between items-start mb-4">
+          <h2 className="text-xl font-bold text-purple-800 flex items-center space-x-2">
+            <FaUser />
+            <span>My Profile</span>
+          </h2>
+          <button
+            onClick={() => setShowProfileEdit(!showProfileEdit)}
+            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all"
+          >
+            <FaEdit />
+            <span>{showProfileEdit ? 'Cancel Edit' : 'Edit Profile'}</span>
+          </button>
+        </div>
+        
+        {!showProfileEdit ? (
+          <div className="flex items-center space-x-6">
+            <div className="w-20 h-20 bg-purple-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+              {(user?.name || 'E').charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Full Name</p>
+                <p className="text-lg font-bold text-gray-800">{user?.name || 'Employee'}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Employee ID</p>
+                <p className="text-lg font-bold text-gray-800">{user?.employeeId || 'EMP001'}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Department</p>
+                <p className="text-lg font-bold text-gray-800">{user?.department || 'IT'}</p>
+              </div>
+              <div className="bg-white p-4 rounded-lg shadow-sm">
+                <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
+                <p className="text-lg font-bold text-gray-800">{user?.email || 'employee@company.com'}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleProfileUpdate} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaUser className="inline mr-2" />
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  value={profileData.name}
+                  onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Enter your name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaUser className="inline mr-2" />
+                  Employee ID
+                </label>
+                <input
+                  type="text"
+                  value={profileData.employeeId}
+                  onChange={(e) => setProfileData({...profileData, employeeId: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Enter employee ID"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaBuilding className="inline mr-2" />
+                  Department
+                </label>
+                <input
+                  type="text"
+                  value={profileData.department}
+                  onChange={(e) => setProfileData({...profileData, department: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Enter department"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <FaUser className="inline mr-2" />
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={profileData.email}
+                  onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                  placeholder="Enter your email (e.g., mohitha@gmail.com)"
+                  required
+                />
+              </div>
+            </div>
+            
+            {/* Password Change Section */}
+            <div className="border-t-2 border-gray-200 pt-4 mt-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password (Optional)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Current Password
+                  </label>
+                  <input
+                    type="password"
+                    value={profileData.currentPassword}
+                    onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Enter current password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={profileData.newPassword}
+                    onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Enter new password"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Confirm New Password
+                  </label>
+                  <input
+                    type="password"
+                    value={profileData.confirmPassword}
+                    onChange={(e) => setProfileData({...profileData, confirmPassword: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                    placeholder="Confirm new password"
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Leave password fields empty if you don't want to change your password.
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowProfileEdit(false)
+                  setProfileData({
+                    employeeId: user?.employeeId || 'EMP001',
+                    name: user?.name || 'Employee',
+                    email: user?.email || 'employee@company.com',
+                    department: user?.department || 'IT',
+                    currentPassword: '',
+                    newPassword: '',
+                    confirmPassword: ''
+                  })
+                }}
+                className="px-6 py-2 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg flex items-center space-x-2 font-medium shadow-md"
+              >
+                <FaSave />
+                <span>Save Changes</span>
+              </button>
+            </div>
+          </form>
+        )}
+      </div>
+
+      {/* Search and Filter */}
+      <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
+            <div className="relative">
+              <FaSearch className="absolute left-3 top-3 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search by name, department, or salary..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+            <select
+              value={filterDepartment}
+              onChange={(e) => setFilterDepartment(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+            >
+              <option value="all">All Departments</option>
+              <option value="IT">IT</option>
+              <option value="HR">HR</option>
+              <option value="Finance">Finance</option>
+              <option value="Marketing">Marketing</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Add/Edit Form */}
+      {showAddForm && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-800">
+              {editingSalary ? 'Edit Salary Request' : 'Add Salary Request'}
+            </h2>
+            <button
+              onClick={() => {
+                setShowAddForm(false)
+                setEditingSalary(null)
+                resetForm()
+              }}
+              className="text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              ×
+            </button>
+          </div>
+          
+          {!editingSalary && (
+            <div className="bg-blue-50 border-l-4 border-blue-500 p-4 mb-4">
+              <p className="text-sm text-blue-800">
+                <strong>💡 Tip:</strong> You can enter ANY employee name and ID. The data will be sent to the admin dashboard for approval.
+              </p>
+            </div>
+          )}
+          
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
+                <input
+                  type="text"
+                  value={formData.employeeId}
+                  onChange={(e) => setFormData({...formData, employeeId: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter any employee ID (e.g., EMP001, EMP002)"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Employee Name</label>
+                <input
+                  type="text"
+                  value={formData.employeeName}
+                  onChange={(e) => setFormData({...formData, employeeName: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter any employee name"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter email (e.g., mohitha@gmail.com)"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
+                <input
+                  type="text"
+                  value={formData.department}
+                  onChange={(e) => setFormData({...formData, department: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  placeholder="Enter department (e.g., IT, HR, Finance)"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Basic Salary</label>
+                <input
+                  type="number"
+                  value={formData.basicSalary}
+                  onChange={(e) => setFormData({...formData, basicSalary: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Allowances</label>
+                <input
+                  type="number"
+                  value={formData.allowances}
+                  onChange={(e) => setFormData({...formData, allowances: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Deductions</label>
+                <input
+                  type="number"
+                  value={formData.deductions}
+                  onChange={(e) => setFormData({...formData, deductions: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Net Salary</label>
+                <input
+                  type="text"
+                  value={`$${((parseFloat(formData.basicSalary) || 0) + (parseFloat(formData.allowances) || 0) - (parseFloat(formData.deductions) || 0)).toLocaleString()}`}
+                  readOnly
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 font-semibold text-green-700"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Effective Date</label>
+                <input
+                  type="date"
+                  value={formData.effectiveDate}
+                  onChange={(e) => setFormData({...formData, effectiveDate: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                <select
+                  value={formData.paymentMethod}
+                  onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                >
+                  <option value="Bank Transfer">Bank Transfer</option>
+                  <option value="Check">Check</option>
+                  <option value="Cash">Cash</option>
+                  <option value="Direct Deposit">Direct Deposit</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+              <textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                rows="3"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                placeholder="Additional notes or comments..."
+              />
+            </div>
+            
+            <div className="flex justify-end space-x-3 mt-6">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center space-x-2"
+              >
+                <FaSave />
+                <span>{editingSalary ? 'Update' : 'Submit'}</span>
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Salary Records Table */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+        <h2 className="text-xl font-semibold text-gray-800 mb-4">Your Salary Requests</h2>
+        
+        {filteredSalaries.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            <FaMoneyBillWave className="mx-auto text-4xl mb-4 text-gray-300" />
+            <p>No salary requests found</p>
+            <button
+              onClick={() => setShowAddForm(true)}
+              className="mt-4 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg"
+            >
+              Create Your First Request
+            </button>
+          </div>
+        ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Employee</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Basic Salary</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Allowances</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Deductions</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Salary</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Pay Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Effective Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-200">
-                {filteredSalaries.map((salary) => (
-                  <tr key={salary._id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 text-sm text-gray-900">{salary.employeeId}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{salary.employeeName}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{salary.department}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">${salary.basicSalary?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">${salary.allowances?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">${salary.deductions?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm font-medium text-gray-900">${salary.netSalary?.toLocaleString()}</td>
-                    <td className="px-6 py-4 text-sm text-gray-900">{salary.payDate}</td>
-                    <td className="px-6 py-4 text-sm">
-                      <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                        salary.status === 'Active' 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
+              <tbody className="bg-white divide-y divide-gray-200">
+                {filteredSalaries.map((salary, index) => (
+                  <tr key={salary.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                          <FaUser className="text-blue-600" />
+                        </div>
+                        <div className="ml-4">
+                          <div className="font-medium text-gray-900">{salary.employeeName}</div>
+                          <div className="text-sm text-gray-500">{salary.employeeId}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{salary.department}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      ${parseFloat(salary.basicSalary || 0).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-700">
+                      ${parseFloat(salary.netSalary || 0).toLocaleString()}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{salary.effectiveDate}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <span className={`px-2 py-1 text-xs rounded-full ${
+                        salary.status === 'Approved' ? 'bg-green-100 text-green-800' :
+                        salary.status === 'Rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-yellow-100 text-yellow-800'
                       }`}>
-                        {salary.status}
+                        {salary.status || 'Pending'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-900">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                       <div className="flex space-x-2">
-                        <button 
+                        <button
                           onClick={() => handleEdit(salary)}
-                          className="text-blue-600 hover:text-blue-800" 
-                          title="Edit"
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
                         >
                           <FaEdit />
                         </button>
-                        <button 
-                          onClick={() => handleDelete(salary._id)}
-                          className="text-red-600 hover:text-red-800" 
-                          title="Delete"
+                        <button
+                          onClick={() => handleDelete(salary)}
+                          className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                         >
                           <FaTrash />
-                        </button>
-                        <button className="text-gray-600 hover:text-gray-800" title="View">
-                          <FaEye />
                         </button>
                       </div>
                     </td>
@@ -531,203 +1025,6 @@ const SalaryManagement = () => {
                 ))}
               </tbody>
             </table>
-            {filteredSalaries.length === 0 && (
-              <div className="text-center py-8 text-gray-500">
-                <p className="mb-4">No salary records found for your account.</p>
-                <button
-                  onClick={() => setShowAddForm(true)}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                >
-                  Create Your First Salary Record
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Add/Edit Salary Modal - Restricted to own data */}
-        {showAddForm && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-screen overflow-y-auto">
-              <h3 className="text-xl font-bold text-gray-800 mb-6">
-                {editingSalary ? 'Edit My Salary Record' : 'Add My Salary Record'}
-              </h3>
-              <p className="text-sm text-blue-600 mb-4">You can only manage your own salary information</p>
-              <form onSubmit={handleSubmit}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Employee Information - Read-only for security */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Your Information</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Employee ID</label>
-                        <input
-                          type="text"
-                          value={formData.employeeId}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-                        <input
-                          type="text"
-                          value={formData.employeeName}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Your Email</label>
-                        <input
-                          type="email"
-                          value={formData.email}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                          readOnly
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Department</label>
-                        <input
-                          type="text"
-                          value={formData.department}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Salary Information - Editable */}
-                  <div className="bg-gray-50 rounded-lg p-6">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Salary Information</h4>
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Basic Salary *</label>
-                        <input
-                          type="number"
-                          value={formData.basicSalary}
-                          onChange={(e) => setFormData({...formData, basicSalary: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter your basic salary"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Allowances</label>
-                        <input
-                          type="number"
-                          value={formData.allowances}
-                          onChange={(e) => setFormData({...formData, allowances: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter your allowances"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Deductions</label>
-                        <input
-                          type="number"
-                          value={formData.deductions}
-                          onChange={(e) => setFormData({...formData, deductions: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Enter your deductions"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Net Salary</label>
-                        <input
-                          type="text"
-                          value={`$${(parseFloat(formData.basicSalary || 0) + parseFloat(formData.allowances || 0) - parseFloat(formData.deductions || 0)).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100"
-                          readOnly
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Additional Information */}
-                  <div className="bg-gray-50 rounded-lg p-6 md:col-span-2">
-                    <h4 className="text-lg font-semibold text-gray-800 mb-4">Additional Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Pay Date</label>
-                        <input
-                          type="date"
-                          value={formData.payDate}
-                          onChange={(e) => setFormData({...formData, payDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Effective Date *</label>
-                        <input
-                          type="date"
-                          value={formData.effectiveDate}
-                          onChange={(e) => setFormData({...formData, effectiveDate: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
-                        <select
-                          value={formData.paymentMethod}
-                          onChange={(e) => setFormData({...formData, paymentMethod: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="Bank Transfer">Bank Transfer</option>
-                          <option value="Cash">Cash</option>
-                          <option value="Check">Check</option>
-                          <option value="Direct Deposit">Direct Deposit</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
-                        <select
-                          value={formData.status}
-                          onChange={(e) => setFormData({...formData, status: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                        </select>
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
-                        <textarea
-                          value={formData.notes}
-                          onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          rows="3"
-                          placeholder="Enter any additional notes about your salary"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowAddForm(false)
-                      setEditingSalary(null)
-                      resetForm()
-                    }}
-                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
-                  >
-                    <FaSave className="mr-2" />
-                    {editingSalary ? 'Update' : 'Save'}
-                  </button>
-                </div>
-              </form>
-            </div>
           </div>
         )}
       </div>

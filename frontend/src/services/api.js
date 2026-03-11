@@ -321,6 +321,111 @@ export const settingsAPI = {
   }
 }
 
+// Salary Request API functions
+export const salaryRequestAPI = {
+  // Get all salary requests
+  getAll: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salary-requests`)
+      if (!response.ok) throw new Error('Failed to fetch salary requests')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching salary requests:', error)
+      throw error
+    }
+  },
+
+  // Get salary requests by employee ID
+  getByEmployeeId: async (employeeId) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salary-requests/employee/${employeeId}`)
+      if (!response.ok) throw new Error('Failed to fetch employee salary requests')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching employee salary requests:', error)
+      throw error
+    }
+  },
+
+  // Get pending salary requests
+  getPending: async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salary-requests/pending`)
+      if (!response.ok) throw new Error('Failed to fetch pending salary requests')
+      return await response.json()
+    } catch (error) {
+      console.error('Error fetching pending salary requests:', error)
+      throw error
+    }
+  },
+
+  // Create new salary request
+  create: async (requestData) => {
+    try {
+      console.log('API: Creating salary request with data:', requestData)
+      const response = await fetch(`${API_BASE_URL}/salary-requests`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      })
+      console.log('API: Salary request response status:', response.status)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('API: Error response:', errorText)
+        throw new Error(`Failed to create salary request: ${errorText}`)
+      }
+      const result = await response.json()
+      console.log('API: Salary request created successfully:', result)
+      return result
+    } catch (error) {
+      console.error('Error creating salary request:', error)
+      throw error
+    }
+  },
+
+  // Update salary request status
+  update: async (id, requestData) => {
+    try {
+      console.log('API: Updating salary request with ID:', id, 'and data:', requestData)
+      const response = await fetch(`${API_BASE_URL}/salary-requests/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData)
+      })
+      console.log('API: Salary request update response status:', response.status)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('API: Error response:', errorText)
+        throw new Error(`Failed to update salary request: ${errorText}`)
+      }
+      const result = await response.json()
+      console.log('API: Salary request updated successfully:', result)
+      return result
+    } catch (error) {
+      console.error('Error updating salary request:', error)
+      throw error
+    }
+  },
+
+  // Delete salary request
+  delete: async (id) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/salary-requests/${id}`, {
+        method: 'DELETE'
+      })
+      if (!response.ok) throw new Error('Failed to delete salary request')
+      return await response.json()
+    } catch (error) {
+      console.error('Error deleting salary request:', error)
+      throw error
+    }
+  }
+}
+
 // Department API functions
 export const departmentAPI = {
   // Get all departments

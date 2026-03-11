@@ -1,4 +1,4 @@
-// AdminDashboard.jsx - Last updated: 2026-03-10 23:45:53
+import React, { useState, useEffect } from 'react'
 import { 
   FaUser, 
   FaMoneyBillWave, 
@@ -22,7 +22,7 @@ import {
   FaUserShield,
   FaCheck
 } from 'react-icons/fa'
-import { employeeAPI, salaryAPI, leaveAPI, departmentAPI, salaryRequestAPI } from '../../services/api.js'
+import { employeeAPI, salaryAPI, leaveAPI, departmentAPI } from '../../services/api.js'
 import { getAllSalaryRequests, updateSalaryRequestStatus, getEmployeeSalaryRecords, updateSalaryRecord, deleteSalaryRecord, getAllSalaryRecords } from '../../data/employeeData'
 
 const AdminDashboard = () => {
@@ -77,168 +77,44 @@ const AdminDashboard = () => {
     loadDashboardData()
   }, [])
 
-  // Auto-refresh salary requests every 30 seconds from server
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      console.log('=== AUTO-REFRESHING SALARY REQUESTS FROM SERVER ===')
-      try {
-        const [serverRequests, localRequests] = await Promise.all([
-          salaryRequestAPI.getAll(),
-          getAllSalaryRequests()
-        ])
-        
-        // Normalize server data
-        const normalizedServerRequests = serverRequests.map(req => ({
-          ...req,
-          id: req._id || req.id,
-          status: req.status || 'Pending'
-        }))
-        
-        console.log('Auto-refreshed server requests:', normalizedServerRequests.length)
-        console.log('Auto-refreshed local requests:', localRequests.length)
-        
-        const combinedRequests = [...normalizedServerRequests, ...localRequests]
-        setSalaryRequests(combinedRequests)
-      } catch (error) {
-        console.error('Error auto-refreshing from server, using local only:', error)
-        const localRequests = getAllSalaryRequests()
-        setSalaryRequests(localRequests)
-      }
-    }, 30000) // 30 seconds
-
-    return () => clearInterval(interval)
-  }, [])
-
   const loadUserData = () => {
     const user = JSON.parse(localStorage.getItem('user') || '{}')
     setUserData(user)
   }
 
-  const handleApproveRequest = async (requestId) => {
+  const handleApproveRequest = (requestId) => {
     console.log('Approving request:', requestId)
     if (window.confirm('Are you sure you want to approve this salary request?')) {
-      try {
-        console.log('=== APPROVING REQUEST ===')
-        console.log('Step 1: Updating server API...')
+      console.log('Calling updateSalaryRequestStatus...')
+      const updatedRequest = updateSalaryRequestStatus(requestId, 'Approved', 'Approved by admin')
+      console.log('Updated request:', updatedRequest)
+      
+      if (updatedRequest) {
+        // Reload salary requests
+        const updatedRequests = getAllSalaryRequests()
+        setSalaryRequests(updatedRequests)
         
-        // Step 1: Update server API
-        const updatedRequest = await salaryRequestAPI.update(requestId, { 
-          status: 'Approved', 
-          adminNotes: 'Approved by admin' 
-        })
-        console.log('Server update result:', updatedRequest)
+        // Also reload salary records to show the new approved salary
+        const updatedSalaryRecords = salaryRecords
+        console.log('Updated salary records:', updatedSalaryRecords)
         
-        // Step 2: Update local data store
-        console.log('Step 2: Updating local data store...')
-        const localUpdate = updateSalaryRequestStatus(requestId, 'Approved', 'Approved by admin')
-        console.log('Local update result:', localUpdate)
-        
-        if (updatedRequest || localUpdate) {
-          // Step 3: Reload all data
-          console.log('Step 3: Reloading all data...')
-          const [serverRequests, localRequests] = await Promise.all([
-            salaryRequestAPI.getAll(),
-            getAllSalaryRequests()
-          ])
-          
-          // Normalize server data
-          const normalizedServerRequests = serverRequests.map(req => ({
-            ...req,
-            id: req._id || req.id,
-            status: req.status || 'Pending'
-          }))
-          
-          const combinedRequests = [...normalizedServerRequests, ...localRequests]
-          setSalaryRequests(combinedRequests)
-          
-          // Step 4: Reload salary records
-          const updatedSalaryRecords = await salaryAPI.getAll()
-          setSalaries(updatedSalaryRecords)
-          
-          // Step 5: Also get local salary records
-          const localSalaryRecords = getAllSalaryRecords()
-          const allCombinedSalaries = [...updatedSalaryRecords, ...localSalaryRecords]
-          setAllSalaries(allCombinedSalaries)
-          
-          console.log('=== APPROVAL COMPLETE ===')
-          console.log('Combined requests:', combinedRequests.length)
-          console.log('Server salary records:', updatedSalaryRecords.length)
-          console.log('Local salary records:', localSalaryRecords.length)
-          console.log('All combined salaries:', allCombinedSalaries.length)
-          
-          alert('Salary request approved successfully! Data stored in both server and local data store.')
-        } else {
-          console.log('Failed to update request')
-          alert('Failed to approve salary request!')
-        }
-      } catch (error) {
-        console.error('Error approving request:', error)
-        // Fallback to local only
-        console.log('Falling back to local update only...')
-        const localUpdate = updateSalaryRequestStatus(requestId, 'Approved', 'Approved by admin')
-        if (localUpdate) {
-          const updatedRequests = getAllSalaryRequests()
-          setSalaryRequests(updatedRequests)
-          alert('Salary request approved locally (server error occurred)!')
-        }
+        alert('Salary request approved successfully!')
+      } else {
+        console.log('Failed to update request')
+        alert('Failed to approve salary request!')
       }
     }
   }
 
-  const handleRejectRequest = async (requestId) => {
+  const handleRejectRequest = (requestId) => {
     const reason = prompt('Please provide a reason for rejection:')
     if (reason) {
-      try {
-        console.log('=== REJECTING REQUEST ===')
-        console.log('Step 1: Updating server API...')
-        
-        // Step 1: Update server API
-        const updatedRequest = await salaryRequestAPI.update(requestId, { 
-          status: 'Rejected', 
-          adminNotes: reason 
-        })
-        console.log('Server update result:', updatedRequest)
-        
-        // Step 2: Update local data store
-        console.log('Step 2: Updating local data store...')
-        const localUpdate = updateSalaryRequestStatus(requestId, 'Rejected', reason)
-        console.log('Local update result:', localUpdate)
-        
-        if (updatedRequest || localUpdate) {
-          // Step 3: Reload all data
-          console.log('Step 3: Reloading all data...')
-          const [serverRequests, localRequests] = await Promise.all([
-            salaryRequestAPI.getAll(),
-            getAllSalaryRequests()
-          ])
-          
-          // Normalize server data
-          const normalizedServerRequests = serverRequests.map(req => ({
-            ...req,
-            id: req._id || req.id,
-            status: req.status || 'Pending'
-          }))
-          
-          const combinedRequests = [...normalizedServerRequests, ...localRequests]
-          setSalaryRequests(combinedRequests)
-          
-          console.log('=== REJECTION COMPLETE ===')
-          console.log('Combined requests:', combinedRequests.length)
-          
-          alert('Salary request rejected successfully! Data stored in both server and local data store.')
-        } else {
-          alert('Failed to reject salary request!')
-        }
-      } catch (error) {
-        console.error('Error rejecting request:', error)
-        // Fallback to local only
-        console.log('Falling back to local update only...')
-        const localUpdate = updateSalaryRequestStatus(requestId, 'Rejected', reason)
-        if (localUpdate) {
-          const updatedRequests = getAllSalaryRequests()
-          setSalaryRequests(updatedRequests)
-          alert('Salary request rejected locally (server error occurred)!')
-        }
+      const updatedRequest = updateSalaryRequestStatus(requestId, 'Rejected', reason)
+      if (updatedRequest) {
+        // Reload salary requests
+        const updatedRequests = getAllSalaryRequests()
+        setSalaryRequests(updatedRequests)
+        alert('Salary request rejected successfully!')
       }
     }
   }
@@ -284,8 +160,6 @@ const AdminDashboard = () => {
         const salaryId = salary.id || salary._id
         const isValidObjectId = salaryId?.length === 24 && /^[0-9a-fA-F]{24}$/.test(salaryId)
         
-        let deletedSuccessfully = false
-        
         if (isValidObjectId) {
           console.log('Valid MongoDB ObjectId, attempting server API deletion...')
           const apiDeleted = await salaryAPI.delete(salaryId)
@@ -293,75 +167,159 @@ const AdminDashboard = () => {
           
           if (apiDeleted) {
             console.log('Successfully deleted from server API')
-            deletedSuccessfully = true
+            
+            // Also delete from local data store
+            const localDeleted = deleteSalaryRecord(salaryId)
+            console.log('Local data store deletion result:', localDeleted)
+            
+            // Update local state by removing the item
+            const newSalaries = salaries.filter((s, i) => i !== index)
+            
+            console.log('Original salaries length:', salaries.length)
+            console.log('New salaries length:', newSalaries.length)
+            
+            // Update state
+            setSalaries(newSalaries)
+            
+            setTimeout(() => {
+              console.log('After state update - salaries count:', salaries.length)
+            }, 100)
+            
+            alert(`Successfully deleted salary record for ${salary.employeeName || salary.name}`)
+            
+            console.log('=== DELETE SUCCESS ===')
+          } else {
+            console.log('Server API deletion failed, trying local data store only...')
+            
+            // Fallback: try local data store deletion
+            const localDeleted = deleteSalaryRecord(salaryId)
+            
+            if (localDeleted) {
+              console.log('Successfully deleted from local data store')
+              
+              // Update local state
+              const newSalaries = salaries.filter((s, i) => i !== index)
+              setSalaries(newSalaries)
+              
+              setTimeout(() => {
+                console.log('Fallback - After state update - salaries count:', salaries.length)
+              }, 100)
+              
+              alert(`Salary record deleted locally for ${salary.employeeName || salary.name}`)
+              
+              console.log('=== DELETE FALLBACK SUCCESS ===')
+            } else {
+              console.log('Both server API and local deletion failed')
+              alert('Failed to delete salary record from both server and local storage')
+            }
           }
-        }
-        
-        // Always try to delete from local data store as well
-        console.log('Attempting local data store deletion...')
-        const localDeleted = deleteSalaryRecord(salaryId)
-        console.log('Local data store deletion result:', localDeleted)
-        
-        if (localDeleted) {
-          deletedSuccessfully = true
-        }
-        
-        if (deletedSuccessfully) {
-          console.log('=== DELETE SUCCESSFUL - UPDATING STATES ===')
+        } else {
+          console.log('Invalid MongoDB ObjectId format, deleting locally only...')
           
-          // Update all relevant states
-          
-          // 1. Update salaries state
+          // For local records (non-ObjectId format), delete locally only
+          const localDeleted = deleteSalaryRecord(salaryId)
           const newSalaries = salaries.filter((s, i) => i !== index)
-          console.log('Updating salaries state:', salaries.length, '->', newSalaries.length)
           setSalaries(newSalaries)
           
-          // 2. Update allSalaries state (this is what's displayed in the table)
-          const newAllSalaries = allSalaries.filter((s, i) => i !== index)
-          console.log('Updating allSalaries state:', allSalaries.length, '->', newAllSalaries.length)
-          setAllSalaries(newAllSalaries)
+          alert(`Local salary record deleted for ${salary.employeeName || salary.name}`)
           
-          // 3. Also update by ID filtering for safety
-          const newAllSalariesById = allSalaries.filter(s => (s.id || s._id) !== salaryId)
-          if (newAllSalariesById.length !== newAllSalaries.length) {
-            console.log('Using ID-based filtering for additional safety')
-            setAllSalaries(newAllSalariesById)
-          }
-          
-          alert(`✅ Successfully deleted salary record for ${salary.employeeName || salary.name}`)
-          
-          console.log('=== DELETE COMPLETE ===')
-          
-          // Verify the deletion after a short delay
-          setTimeout(() => {
-            console.log('Post-delete verification:')
-            console.log('salaries length:', salaries.length)
-            console.log('allSalaries length:', allSalaries.length)
-          }, 500)
-          
-        } else {
-          console.log('=== DELETE FAILED ===')
-          alert('❌ Failed to delete salary record. Please try again.')
+          console.log('=== LOCAL DELETE SUCCESS ===')
         }
-        
       } catch (error) {
         console.error('Delete error:', error)
         
         // Final fallback: just update local state
         console.log('API error, updating local state only...')
-        const newAllSalaries = allSalaries.filter((s, i) => i !== index)
-        setAllSalaries(newAllSalaries)
+        const newSalaries = [...salaries]
+        newSalaries.splice(index, 1)
+        setSalaries(newSalaries)
         
         setTimeout(() => {
-          console.log('Fallback - After state update - allSalaries count:', allSalaries.length)
+          console.log('Final fallback - After state update - salaries count:', salaries.length)
         }, 100)
         
         alert(`Salary record deleted locally (server error: ${error.message})`)
         
-        console.log('=== DELETE FALLBACK SUCCESS ===')
+        console.log('=== DELETE FINAL FALLBACK SUCCESS ===')
       }
-    } else {
-      console.log('Delete cancelled by user')
+    }
+  }
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      console.log('=== LOADING DASHBOARD DATA ===')
+      
+      const [employeesData, departmentsData, salariesData, leavesData] = await Promise.all([
+        employeeAPI.getAll(),
+        departmentAPI.getAll(),
+        salaryAPI.getAll(),
+        leaveAPI.getAll()
+      ])
+
+      // Load salary requests from data store
+      const salaryRequestsData = getAllSalaryRequests()
+      
+      console.log('=== SALARY REQUESTS DEBUG ===')
+      console.log('getAllSalaryRequests() returned:', salaryRequestsData)
+      console.log('Salary requests array length:', salaryRequestsData.length)
+      if (salaryRequestsData.length > 0) {
+        console.log('First salary request:', salaryRequestsData[0])
+      }
+      
+      // Get all salary records from data store (as backup)
+      const allSalaryRecords = getAllSalaryRecords()
+
+      console.log('=== DATA LOADED ===')
+      console.log('Employees:', employeesData.length)
+      console.log('Departments:', departmentsData.length)
+      console.log('Salaries from API:', salariesData.length)
+      console.log('All salary records from data store:', allSalaryRecords.length)
+      console.log('Leaves:', leavesData.length)
+      console.log('Salary requests:', salaryRequestsData.length)
+
+      setEmployees(employeesData)
+      setDepartments(departmentsData)
+      // Use API data as primary source now that server is running
+      setSalaries(salariesData)
+      setLeaves(leavesData)
+      setSalaryRequests(salaryRequestsData)
+
+      console.log('=== STATE UPDATED ===')
+      console.log('Salaries state set:', salariesData.length, 'records')
+      
+      // Combine API salaries with local data store for complete view
+      const localSalaryRecords = getAllSalaryRecords()
+      console.log('Local salary records from data store:', localSalaryRecords.length)
+      
+      // Create combined data for salary records section
+      const combinedSalaries = [...salariesData, ...localSalaryRecords]
+      console.log('Combined salaries for display:', combinedSalaries.length)
+      
+      // Store combined data for the salary records section
+      setAllSalaries(combinedSalaries)
+
+      // Use the actual salaries data for stats calculation
+      const totalSalary = salariesData.reduce((sum, salary) => sum + (salary.basicSalary || 0), 0)
+      const leaveStats = leavesData.reduce((acc, leave) => {
+        acc[leave.status.toLowerCase()] = (acc[leave.status.toLowerCase()] || 0) + 1
+        return acc
+      }, {})
+
+      setStats({
+        totalEmployees: employeesData.length,
+        totalDepartments: departmentsData.length,
+        totalSalary: totalSalary,
+        pendingLeaves: leaveStats.pending || 0,
+        approvedLeaves: leaveStats.approved || 0,
+        rejectedLeaves: leaveStats.rejected || 0
+      })
+
+      console.log('=== STATS CALCULATED ===')
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -378,176 +336,6 @@ const AdminDashboard = () => {
       } else {
         alert('Please select an image file (JPG, PNG, etc.)')
       }
-    }
-  }
-
-  // Listen for salary data updates from other components
-  useEffect(() => {
-    const handleSalaryDataUpdate = () => {
-      console.log('🔄 Salary data update event received - refreshing admin dashboard data')
-      loadDashboardData()
-    }
-
-    window.addEventListener('salaryDataUpdated', handleSalaryDataUpdate)
-    
-    // Also listen for new salary requests from employees
-    window.addEventListener('newSalaryRequest', () => {
-      console.log('📝 New salary request event received - refreshing admin dashboard data')
-      loadDashboardData()
-    })
-    
-    return () => {
-      window.removeEventListener('salaryDataUpdated', handleSalaryDataUpdate)
-      window.removeEventListener('newSalaryRequest', () => {
-        console.log('📝 New salary request event received - refreshing admin dashboard data')
-        loadDashboardData()
-      })
-    }
-  }, [])
-
-  const loadDashboardData = async () => {
-    try {
-      setLoading(true)
-      console.log('=== LOADING DASHBOARD DATA FROM SERVER ===')
-      console.log('Current user from localStorage:', JSON.parse(localStorage.getItem('user') || '{}'))
-      
-      const [employeesData, departmentsData, salariesData, leavesData, salaryRequestsData] = await Promise.all([
-        employeeAPI.getAll(),
-        departmentAPI.getAll(),
-        salaryAPI.getAll(),
-        leaveAPI.getAll(),
-        salaryRequestAPI.getAll()
-      ])
-
-      // Also get local salary requests as backup
-      const localSalaryRequests = getAllSalaryRequests()
-      
-      // Normalize server data to match frontend expected format
-      const normalizedServerRequests = salaryRequestsData.map(req => ({
-        ...req,
-        id: req._id || req.id, // Use MongoDB _id as id if available
-        status: req.status || 'Pending'
-      }))
-      
-      console.log('=== SERVER SALARY REQUESTS DEBUG ===')
-      console.log('Raw server requests:', salaryRequestsData)
-      console.log('Normalized server requests:', normalizedServerRequests)
-      console.log('Local salary requests:', localSalaryRequests)
-      console.log('Server requests array length:', normalizedServerRequests.length)
-      console.log('Local requests array length:', localSalaryRequests.length)
-      console.log('Server pending requests:', normalizedServerRequests.filter(req => req.status === 'Pending'))
-      console.log('Local pending requests:', localSalaryRequests.filter(req => req.status === 'Pending'))
-      
-      if (normalizedServerRequests.length > 0) {
-        console.log('First server salary request:', normalizedServerRequests[0])
-        console.log('Server request keys:', Object.keys(normalizedServerRequests[0]))
-      } else {
-        console.log('No salary requests found on server!')
-      }
-      
-      // Get all salary records from data store (as backup)
-      const allSalaryRecords = getAllSalaryRecords()
-
-      console.log('=== DATA LOADED FROM SERVER ===')
-      console.log('Employees:', employeesData.length)
-      console.log('Departments:', departmentsData.length)
-      console.log('Salaries from API:', salariesData.length)
-      console.log('All salary records from data store:', allSalaryRecords.length)
-      console.log('Leaves:', leavesData.length)
-      console.log('Salary requests from server:', normalizedServerRequests.length)
-      console.log('Salary requests from local:', localSalaryRequests.length)
-
-      setEmployees(employeesData)
-      setDepartments(departmentsData)
-      // Use API data as primary source now that server is running
-      setSalaries(salariesData)
-      setLeaves(leavesData)
-      
-      // Use server data for salary requests, with local data as backup
-      const combinedSalaryRequests = [...normalizedServerRequests, ...localSalaryRequests]
-      // Enrich salary requests with employee data
-      const enrichedSalaryRequests = combinedSalaryRequests.map(request => {
-        // Find matching employee from employees data
-        const matchingEmployee = employeesData.find(emp => 
-          emp.employeeId === request.employeeId || 
-          emp.id === request.employeeId
-        )
-        
-        if (matchingEmployee) {
-          console.log(`Found matching employee for request ${request.id}:`, matchingEmployee.name)
-          return {
-            ...request,
-            employeeName: matchingEmployee.name || request.employeeName,
-            email: matchingEmployee.email || request.email,
-            department: matchingEmployee.department || request.department,
-            phone: matchingEmployee.phone || request.phone,
-            designation: matchingEmployee.designation || request.designation,
-            employeeEnriched: true
-          }
-        } else {
-          console.log(`No matching employee found for request ${request.id} (employeeId: ${request.employeeId})`)
-          return {
-            ...request,
-            employeeName: request.employeeName || `Employee ${request.employeeId}`,
-            employeeEnriched: false
-          }
-        }
-      })
-
-      console.log('=== ENRICHMENT ANALYSIS ===')
-      console.log('Original requests:', combinedSalaryRequests.length)
-      console.log('Enriched requests:', enrichedSalaryRequests.length)
-      console.log('Enriched with employee data:', enrichedSalaryRequests.filter(req => req.employeeEnriched).length)
-      console.log('Not enriched:', enrichedSalaryRequests.filter(req => !req.employeeEnriched).length)
-
-      setSalaryRequests(enrichedSalaryRequests)
-
-      console.log('=== EMPLOYEE TO ADMIN CONNECTION ANALYSIS ===')
-      console.log('Normalized server requests:', normalizedServerRequests.length)
-      console.log('Local requests:', localSalaryRequests.length)
-      console.log('Combined total:', combinedSalaryRequests.length)
-      
-      // Analyze employee data in requests
-      const requestsWithEmployeeData = combinedSalaryRequests.filter(req => req.employeeName || req.employeeId)
-      const requestsWithoutEmployeeData = combinedSalaryRequests.filter(req => !req.employeeName && !req.employeeId)
-      
-      console.log('Requests WITH employee data:', requestsWithEmployeeData.length)
-      console.log('Requests WITHOUT employee data:', requestsWithoutEmployeeData.length)
-      
-      if (requestsWithoutEmployeeData.length > 0) {
-        console.log('❌ EMPLOYEE DATA ISSUE DETECTED!')
-        console.log('Requests missing employee data:', requestsWithoutEmployeeData.map(req => ({
-          id: req.id,
-          hasEmployeeName: !!req.employeeName,
-          hasEmployeeId: !!req.employeeId,
-          employeeName: req.employeeName,
-          employeeId: req.employeeId,
-          allKeys: Object.keys(req)
-        })))
-      }
-
-      console.log('=== STATE UPDATED ===')
-      console.log('Salaries state set:', salariesData.length, 'records')
-      console.log('Salary requests state set:', combinedSalaryRequests.length, 'requests')
-      
-      // Combine API salaries with local data store for complete view
-      const localSalaryRecords = getAllSalaryRecords()
-      console.log('Local salary records from data store:', localSalaryRecords.length)
-      
-      // Create combined data for salary records section
-      const combinedSalaries = [...salariesData, ...localSalaryRecords]
-      console.log('Combined salaries for display:', combinedSalaries.length)
-      
-      // Store combined data for the salary records section
-      setAllSalaries(combinedSalaries)
-    } catch (error) {
-      console.error('Error loading dashboard data from server:', error)
-      // Fallback to local data only
-      console.log('Falling back to local data only...')
-      const localSalaryRequests = getAllSalaryRequests()
-      setSalaryRequests(localSalaryRequests)
-    } finally {
-      setLoading(false)
     }
   }
 
@@ -1195,279 +983,23 @@ const AdminDashboard = () => {
       case 'salary':
         return (
           <div className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-3xl font-bold text-gray-800">Salary Management</h2>
-              {salaryRequests.filter(req => req.status === 'Pending').length > 0 && (
-                <div className="bg-red-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center space-x-1">
-                  <FaMoneyBillWave className="text-xs" />
-                  <span>{salaryRequests.filter(req => req.status === 'Pending').length} Pending</span>
-                </div>
-              )}
-            </div>
-            
-            {/* Debug Access Control */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-              <h4 className="text-sm font-semibold text-blue-800 mb-2">Access Control Debug</h4>
-              <div className="text-xs text-blue-700 space-y-1">
-                <p>Current User: {userData?.name || 'Not loaded'}</p>
-                <p>User Role: {userData?.role || 'Not loaded'}</p>
-                <p>Salary Requests: {salaryRequests.length} total</p>
-                <p>Pending Requests: {salaryRequests.filter(req => req.status === 'Pending').length}</p>
-                <p>Approved Requests: {salaryRequests.filter(req => req.status === 'Approved').length}</p>
-                <p>Rejected Requests: {salaryRequests.filter(req => req.status === 'Rejected').length}</p>
-              </div>
-              <div className="mt-3 space-x-2">
-                <button
-                  onClick={() => {
-                    console.log('=== ACCESS CONTROL DEBUG ===')
-                    console.log('User data:', userData)
-                    console.log('All salary requests:', salaryRequests)
-                    console.log('Pending requests:', salaryRequests.filter(req => req.status === 'Pending'))
-                    console.log('Approved requests:', salaryRequests.filter(req => req.status === 'Approved'))
-                    console.log('Rejected requests:', salaryRequests.filter(req => req.status === 'Rejected'))
-                    
-                    // Show detailed info about each request
-                    salaryRequests.forEach((req, index) => {
-                      console.log(`Request ${index + 1}:`, {
-                        id: req.id,
-                        employeeId: req.employeeId,
-                        employeeName: req.employeeName,
-                        status: req.status,
-                        requestedDate: req.requestedDate,
-                        effectiveDate: req.effectiveDate,
-                        basicSalary: req.basicSalary
-                      })
-                    })
-                    
-                    alert(`Debug info logged to console. Total requests: ${salaryRequests.length}, Pending: ${salaryRequests.filter(req => req.status === 'Pending').length}`)
-                  }}
-                  className="mt-2 px-3 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700"
-                >
-                  Debug Access
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('=== PENDING REQUESTS DEBUG ===')
-                    const pendingRequests = salaryRequests.filter(req => req.status === 'Pending')
-                    console.log('Total pending requests:', pendingRequests.length)
-                    
-                    if (pendingRequests.length === 0) {
-                      console.log('❌ NO PENDING REQUESTS FOUND')
-                      alert('❌ No pending requests found!\n\nTry clicking "🔗 Test Connection" to fetch data.')
-                      return
-                    }
-                    
-                    console.log('=== ANALYZING PENDING REQUESTS ===')
-                    pendingRequests.forEach((req, index) => {
-                      console.log(`\n--- Request ${index + 1} ---`)
-                      console.log('ID:', req.id || req._id)
-                      console.log('Employee Name:', req.employeeName || req.name || 'MISSING')
-                      console.log('Employee ID:', req.employeeId || 'MISSING')
-                      console.log('Email:', req.email || 'MISSING')
-                      console.log('Department:', req.department || 'MISSING')
-                      console.log('Basic Salary:', req.basicSalary || 'MISSING')
-                      console.log('Net Salary:', req.netSalary || 'MISSING')
-                      console.log('Status:', req.status || 'MISSING')
-                      console.log('Requested Date:', req.requestedDate || 'MISSING')
-                      console.log('Effective Date:', req.effectiveDate || 'MISSING')
-                      console.log('All keys:', Object.keys(req))
-                    })
-                    
-                    alert(`✅ Found ${pendingRequests.length} pending requests!\n\nCheck console for detailed employee data analysis.\n\nLook for any "MISSING" values - those indicate data problems.`)
-                  }}
-                  className="mt-2 px-3 py-1 bg-orange-600 text-white rounded text-xs hover:bg-orange-700"
-                >
-                  🔍 Debug Pending
-                </button>
-                <button
-                  onClick={() => {
-                    console.log('=== EMPLOYEE DATA ENRICHMENT TEST ===')
-                    
-                    // Test current state
-                    const currentRequests = salaryRequests
-                    console.log('Current requests in state:', currentRequests.length)
-                    
-                    // Count enriched vs non-enriched
-                    const enrichedRequests = currentRequests.filter(req => req.employeeEnriched)
-                    const nonEnrichedRequests = currentRequests.filter(req => !req.employeeEnriched)
-                    
-                    console.log('Enriched requests:', enrichedRequests.length)
-                    console.log('Non-enriched requests:', nonEnrichedRequests.length)
-                    
-                    // Show sample data
-                    if (currentRequests.length > 0) {
-                      const sampleRequest = currentRequests[0]
-                      console.log('Sample request data:', {
-                        id: sampleRequest.id,
-                        employeeName: sampleRequest.employeeName,
-                        employeeId: sampleRequest.employeeId,
-                        email: sampleRequest.email,
-                        department: sampleRequest.department,
-                        employeeEnriched: sampleRequest.employeeEnriched,
-                        allKeys: Object.keys(sampleRequest)
-                      })
-                    }
-                    
-                    alert(`✅ Employee Data Enrichment Analysis:\n\nTotal Requests: ${currentRequests.length}\nEnriched: ${enrichedRequests.length}\nNon-Enriched: ${nonEnrichedRequests.length}\n\nCheck console for sample data!`)
-                  }}
-                  className="mt-2 px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
-                >
-                  🧪 Test Enrichment
-                </button>
-                <button
-                  onClick={async () => {
-                    console.log('=== TEST EMPLOYEE TO ADMIN CONNECTION ===')
-                    try {
-                      // Step 1: Check what's on server
-                      console.log('Step 1: Checking server data...')
-                      const serverData = await salaryRequestAPI.getAll()
-                      console.log('Server data found:', serverData.length, 'requests')
-                      
-                      if (serverData.length > 0) {
-                        console.log('First request on server:', serverData[0])
-                      }
-                      
-                      // Step 2: Check what's in local store
-                      console.log('Step 2: Checking local data...')
-                      const localData = getAllSalaryRequests()
-                      console.log('Local data found:', localData.length, 'requests')
-                      
-                      // Step 3: Normalize and combine
-                      const normalizedServer = serverData.map(req => ({
-                        ...req,
-                        id: req._id || req.id,
-                        status: req.status || 'Pending'
-                      }))
-                      
-                      const combined = [...normalizedServer, ...localData]
-                      console.log('Combined data:', combined.length, 'requests')
-                      
-                      // Step 4: Update state
-                      setSalaryRequests(combined)
-                      
-                      // Step 5: Show results
-                      const pendingCount = combined.filter(req => req.status === 'Pending').length
-                      const approvedCount = combined.filter(req => req.status === 'Approved').length
-                      const rejectedCount = combined.filter(req => req.status === 'Rejected').length
-                      
-                      alert(`✅ Connection Test Complete!\n\nServer: ${serverData.length} requests\nLocal: ${localData.length} requests\nCombined: ${combined.length} requests\n\nStatus Breakdown:\nPending: ${pendingCount}\nApproved: ${approvedCount}\nRejected: ${rejectedCount}\n\nCheck yellow debug section!`)
-                      
-                    } catch (error) {
-                      console.error('Connection test failed:', error)
-                      alert(`❌ Connection Failed: ${error.message}`)
-                    }
-                  }}
-                  className="mt-2 px-3 py-1 bg-purple-600 text-white rounded text-xs hover:bg-purple-700"
-                >
-                  🔗 Test Connection
-                </button>
-              </div>
-            </div>
-            
-            {/* Debug: Show All Requests */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4">
-              <h4 className="text-sm font-semibold text-yellow-800 mb-2">All Salary Requests (Debug)</h4>
-              <div className="text-xs text-yellow-700">
-                <p><strong>Total requests:</strong> {salaryRequests.length}</p>
-                <p><strong>Pending:</strong> {salaryRequests.filter(req => req.status === 'Pending').length}</p>
-                <p><strong>Approved:</strong> {salaryRequests.filter(req => req.status === 'Approved').length}</p>
-                <p><strong>Rejected:</strong> {salaryRequests.filter(req => req.status === 'Rejected').length}</p>
-                
-                <div className="mt-3 p-2 bg-yellow-100 rounded">
-                  <p className="font-semibold mb-1">🔍 Data Source Analysis:</p>
-                  <p className="text-xs">• Server requests have MongoDB _id</p>
-                  <p className="text-xs">• Local requests have numeric id</p>
-                  <p className="text-xs">• Check console for detailed logs</p>
-                </div>
-                
-                <button
-                  onClick={() => {
-                    console.log('=== DETAILED REQUEST ANALYSIS ===')
-                    console.log('Current salaryRequests state:', salaryRequests)
-                    console.log('Type:', typeof salaryRequests)
-                    console.log('Is array:', Array.isArray(salaryRequests))
-                    
-                    if (salaryRequests.length === 0) {
-                      console.log('❌ NO REQUESTS FOUND - This is the problem!')
-                      alert('❌ No requests found! Click "🔗 Test Connection" to fetch data.')
-                    } else {
-                      console.log('✅ REQUESTS FOUND - Analyzing each request...')
-                      salaryRequests.forEach((req, index) => {
-                        console.log(`Request ${index + 1}:`, {
-                          id: req.id,
-                          _id: req._id,
-                          employeeId: req.employeeId,
-                          employeeName: req.employeeName,
-                          status: req.status,
-                          basicSalary: req.basicSalary,
-                          department: req.department,
-                          isFromServer: !!req._id,
-                          isFromLocal: !req._id && typeof req.id === 'number'
-                        })
-                      })
-                      
-                      const pendingCount = salaryRequests.filter(req => req.status === 'Pending').length
-                      alert(`✅ Found ${salaryRequests.length} requests (${pendingCount} pending). Details logged to console.`)
-                    }
-                  }}
-                  className="mt-2 px-3 py-1 bg-yellow-600 text-white rounded text-xs hover:bg-yellow-700"
-                >
-                  📊 Analyze Data
-                </button>
-                
-                <div className="mt-2">
-                  {salaryRequests.length === 0 ? (
-                    <div className="p-2 bg-red-100 rounded text-red-700">
-                      <p>❌ No requests found!</p>
-                      <p className="text-xs">Click "🔗 Test Connection" above</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-1 max-h-40 overflow-y-auto">
-                      {salaryRequests.map((req, index) => (
-                        <div key={req.id || index} className="border-l-2 border-yellow-400 pl-2 bg-white p-1 rounded">
-                          <p><strong>#{index + 1}:</strong> {req.employeeName} - {req.status}</p>
-                          <p className="text-xs">ID: {req.id || req._id} | Emp: {req.employeeId} | Salary: ${req.basicSalary}</p>
-                          <p className="text-xs">Dept: {req.department} | {req._id ? '🟢 Server' : '🔵 Local'}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
+            <h2 className="text-3xl font-bold text-gray-800">Salary Management</h2>
             
             {/* Salary Requests Section */}
             <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-xl font-semibold text-gray-800">Pending Salary Requests</h3>
                 <button
-                  onClick={async () => {
-                    console.log('=== MANUAL REFRESH FROM SERVER CLICKED ===')
-                    try {
-                      const [serverRequests, localRequests] = await Promise.all([
-                        salaryRequestAPI.getAll(),
-                        getAllSalaryRequests()
-                      ])
-                      console.log('Refreshed server salary requests:', serverRequests)
-                      console.log('Refreshed local salary requests:', localRequests)
-                      
-                      const combinedRequests = [...serverRequests, ...localRequests]
-                      setSalaryRequests(combinedRequests)
-                      
-                      const pendingCount = combinedRequests.filter(req => req.status === 'Pending').length
-                      alert(`Refreshed! Found ${combinedRequests.length} total requests (${pendingCount} pending) from server and local`)
-                    } catch (error) {
-                      console.error('Error refreshing from server:', error)
-                      // Fallback to local only
-                      const localRequests = getAllSalaryRequests()
-                      setSalaryRequests(localRequests)
-                      alert(`Server error! Loaded ${localRequests.length} local requests only`)
-                    }
+                  onClick={() => {
+                    console.log('=== MANUAL REFRESH CLICKED ===')
+                    const refreshedRequests = getAllSalaryRequests()
+                    console.log('Refreshed salary requests:', refreshedRequests)
+                    setSalaryRequests(refreshedRequests)
+                    alert(`Refreshed! Found ${refreshedRequests.length} total requests`)
                   }}
-                  className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 flex items-center space-x-1"
+                  className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
                 >
-                  <FaCalendarAlt className="text-xs" />
-                  <span>Refresh Requests</span>
+                  Refresh Requests
                 </button>
               </div>
               
@@ -1498,47 +1030,20 @@ const AdminDashboard = () => {
                                 <FaUser className="text-blue-600" />
                               </div>
                               <div className="ml-4">
-                                <div className="font-medium text-gray-900">
-                                  {request.employeeName || request.name || `Employee ${request.employeeId || 'Unknown'}`}
-                                </div>
-                                <div className="text-sm text-gray-500">
-                                  {request.employeeId || `ID: ${request.id || 'Unknown'}`}
-                                </div>
-                                <div className="text-xs text-gray-400">
-                                  {request.email || 'No email'}
-                                </div>
+                                <div className="font-medium text-gray-900">{request.employeeName}</div>
+                                <div className="text-sm text-gray-500">{request.employeeId}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {request.department || 'Not specified'}
-                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{request.department}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             <div>
-                              <div className="font-medium">
-                                ${request.basicSalary ? parseFloat(request.basicSalary).toLocaleString() : '0'}
-                              </div>
-                              <div className="text-xs text-gray-500">
-                                Net: ${request.netSalary ? parseFloat(request.netSalary).toLocaleString() : '0'}
-                              </div>
-                              {request.allowances && (
-                                <div className="text-xs text-green-600">
-                                  +${parseFloat(request.allowances).toLocaleString()} allowances
-                                </div>
-                              )}
-                              {request.deductions && (
-                                <div className="text-xs text-red-600">
-                                  -${parseFloat(request.deductions).toLocaleString()} deductions
-                                </div>
-                              )}
+                              <div className="font-medium">${parseFloat(request.basicSalary).toLocaleString()}</div>
+                              <div className="text-xs text-gray-500">Net: ${parseFloat(request.netSalary).toLocaleString()}</div>
                             </div>
                           </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {request.effectiveDate || 'Not set'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {request.requestedDate || 'Not set'}
-                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{request.effectiveDate}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{request.requestedDate}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <div className="flex space-x-2">
                               <button
@@ -1705,8 +1210,8 @@ const AdminDashboard = () => {
                             </div>
                           </td>
                         </tr>
-                      )
-                      })}</tbody>
+                      })
+                    })</tbody>
                   </table>
                 </div>
               )}

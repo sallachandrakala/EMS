@@ -1,6 +1,13 @@
 import React from 'react'
 import { NavLink } from 'react-router-dom'
-import { FaTachometerAlt, FaMoneyBillWave, FaCalendarAlt, FaUser, FaSignOutAlt } from 'react-icons/fa'
+import { 
+  FaTachometerAlt, 
+  FaMoneyBillWave, 
+  FaCalendarAlt, 
+  FaUser, 
+  FaUsers,
+  FaSignOutAlt 
+} from 'react-icons/fa'
 
 const EmployeeSidebar = () => {
   return (
@@ -27,7 +34,19 @@ const EmployeeSidebar = () => {
             }
           >
             <FaTachometerAlt />
-            <span>Dashboard</span>
+            <span>My Dashboard</span>
+          </NavLink>
+          
+          <NavLink 
+            to="/all-employees" 
+            className={({ isActive }) => 
+              `flex items-center space-x-3 p-3 rounded-lg transition-colors ${
+                isActive ? 'bg-blue-600 text-white' : 'text-gray-300 hover:bg-gray-700 hover:text-white'
+              }`
+            }
+          >
+            <FaUsers />
+            <span>All Employees</span>
           </NavLink>
           
           <NavLink 

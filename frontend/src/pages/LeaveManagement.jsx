@@ -13,12 +13,12 @@ import {
   FaCheckCircle,
   FaHourglassHalf,
   FaTimesCircle,
-  FaFileAlt
+  FaFileAlt,
+  FaUser
 } from 'react-icons/fa'
-import { leaveAPI } from '../services/api'
 
 const LeaveManagement = () => {
-  const { user } = useAuth()
+  const { user, updateUser } = useAuth()
   const navigate = useNavigate()
   const [leaves, setLeaves] = useState([])
   const [loading, setLoading] = useState(true)
@@ -35,92 +35,190 @@ const LeaveManagement = () => {
   })
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState('all')
+  const [showProfileEdit, setShowProfileEdit] = useState(false)
+  const [profileData, setProfileData] = useState({
+    employeeId: user?.employeeId || 'EMP001',
+    name: user?.name || 'Employee',
+    email: user?.email || 'employee@company.com',
+    department: user?.department || 'IT',
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  })
 
   useEffect(() => {
     loadLeaves()
-  }, [])
+    // Update profile data when user changes
+    setProfileData({
+      employeeId: user?.employeeId || 'EMP001',
+      name: user?.name || 'Employee',
+      email: user?.email || 'employee@company.com',
+      department: user?.department || 'IT',
+      currentPassword: '',
+      newPassword: '',
+      confirmPassword: ''
+    })
+  }, [user])
 
-  const loadLeaves = async () => {
-    try {
-      setLoading(true)
-      const response = await leaveAPI.getAll()
-      // Filter leaves for current user
-      const userLeaves = response.data.filter(leave => 
-        leave.employeeId === user?.employeeId || 
-        leave.employeeName === user?.name ||
-        leave.email === user?.email
-      )
-      setLeaves(userLeaves)
-    } catch (error) {
-      console.error('Failed to load leaves:', error)
-      // Fallback to mock data if API fails
-      setLeaves([
-        {
-          id: 1,
-          leaveType: 'Sick Leave',
-          fromDate: '2024-09-15',
-          toDate: '2024-09-16',
-          reason: 'Fever and headache',
-          duration: 'Full Day',
-          status: 'Pending',
-          appliedDate: '2024-09-15',
-          contactNumber: '+1234567890',
-          emergencyContact: '+0987654321'
-        },
-        {
-          id: 2,
-          leaveType: 'Annual Leave',
-          fromDate: '2024-09-10',
-          toDate: '2024-09-12',
-          reason: 'Family vacation',
-          duration: 'Multiple Days',
-          status: 'Approved',
-          appliedDate: '2024-09-08',
-          contactNumber: '+1234567890',
-          emergencyContact: '+0987654321'
-        }
-      ])
-    } finally {
-      setLoading(false)
-    }
+  const loadLeaves = () => {
+    console.log('=== LOADING LEAVE DATA (SHOW ALL REQUESTS) ===')
+    
+    // ONLY load from localStorage - same as salary system
+    const storedLeaves = localStorage.getItem('leaveRequests')
+    const leaves = storedLeaves ? JSON.parse(storedLeaves) : []
+    console.log('Loaded leave requests from localStorage:', leaves.length)
+    console.log('All leave requests:', leaves)
+    
+    // SHOW ALL REQUESTS - Don't filter by employeeId
+    // This allows employees to see all requests they create, regardless of the ID they enter
+    const sortedLeaves = leaves.sort((a, b) => {
+      const dateA = new Date(a.appliedDate || a.submittedAt || 0)
+      const dateB = new Date(b.appliedDate || b.submittedAt || 0)
+      return dateB - dateA
+    })
+    
+    console.log('Total leave data to display:', sortedLeaves.length, 'requests')
+    
+    // If no data in localStorage, show empty (don't use hardcoded data)
+    setLeaves(sortedLeaves)
+    setLoading(false)
   }
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault()
-    try {
-      const leaveData = {
-        ...formData,
+    
+    console.log('🔵 LEAVE FORM SUBMITTED')
+    console.log('Form data:', formData)
+    console.log('Editing leave:', editingLeave)
+    
+    // Validate required fields
+    if (!formData.leaveType || !formData.fromDate || !formData.toDate) {
+      alert('❌ Please fill in all required fields:\n- Leave Type\n- From Date\n- To Date')
+      return
+    }
+    
+    if (editingLeave) {
+      console.log('=== UPDATING EXISTING LEAVE REQUEST ===')
+      
+      try {
+        const updatedData = {
+          leaveType: formData.leaveType,
+          fromDate: formData.fromDate,
+          toDate: formData.toDate,
+          reason: formData.reason,
+          duration: formData.duration,
+          contactNumber: formData.contactNumber,
+          emergencyContact: formData.emergencyContact
+        }
+        
+        const leaveId = editingLeave._id || editingLeave.id
+        console.log('Updating leave with ID:', leaveId)
+        
+        // Update in localStorage
+        const storedLeaves = localStorage.getItem('leaveRequests')
+        if (storedLeaves) {
+          const leavesArray = JSON.parse(storedLeaves)
+          const updatedLeaves = leavesArray.map(l => {
+            if (l._id === leaveId || l.id === leaveId) {
+              return { ...l, ...updatedData }
+            }
+            return l
+          })
+          
+          localStorage.setItem('leaveRequests', JSON.stringify(updatedLeaves))
+          console.log('✅ Updated leaveRequests in localStorage')
+        }
+        
+        alert('✅ Leave request updated successfully!')
+        setShowAddForm(false)
+        setEditingLeave(null)
+        setFormData({
+          leaveType: '',
+          fromDate: '',
+          toDate: '',
+          reason: '',
+          duration: 'Full Day',
+          contactNumber: '',
+          emergencyContact: ''
+        })
+        
+        // Reload data
+        loadLeaves()
+        
+        // Notify admin dashboard
+        window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
+      } catch (error) {
+        console.error('Update failed:', error)
+        alert('❌ Failed to update leave request!')
+      }
+    } else {
+      console.log('=== CREATING NEW LEAVE REQUEST ===')
+      
+      const newLeaveData = {
+        id: Date.now(),
+        _id: Date.now().toString(),
         employeeId: user?.employeeId || 'EMP001',
         employeeName: user?.name || 'Employee',
         email: user?.email || 'employee@company.com',
         department: user?.department || 'IT',
+        leaveType: formData.leaveType,
+        fromDate: formData.fromDate,
+        toDate: formData.toDate,
+        reason: formData.reason,
+        duration: formData.duration || 'Full Day',
+        contactNumber: formData.contactNumber || '',
+        emergencyContact: formData.emergencyContact || '',
+        appliedDate: new Date().toISOString().split('T')[0],
         status: 'Pending',
-        appliedDate: new Date().toISOString().split('T')[0]
+        submittedBy: 'employee',
+        submittedAt: new Date().toISOString()
       }
-
-      if (editingLeave) {
-        await leaveAPI.update(editingLeave.id, leaveData)
-        alert('Leave request updated successfully!')
-      } else {
-        await leaveAPI.create(leaveData)
-        alert('Leave request submitted successfully!')
+      
+      console.log('New leave request data:', newLeaveData)
+      
+      try {
+        // Save directly to localStorage
+        const storedLeaves = localStorage.getItem('leaveRequests')
+        const leavesArray = storedLeaves ? JSON.parse(storedLeaves) : []
+        
+        console.log('📦 Current leave requests in localStorage:', leavesArray.length)
+        
+        leavesArray.push(newLeaveData)
+        localStorage.setItem('leaveRequests', JSON.stringify(leavesArray))
+        
+        console.log('✅ Saved to localStorage:', leavesArray.length, 'total requests')
+        console.log('📝 Last saved request:', leavesArray[leavesArray.length - 1])
+        
+        alert('✅ Leave request submitted successfully!\n\nType: ' + newLeaveData.leaveType + '\nFrom: ' + newLeaveData.fromDate + '\nTo: ' + newLeaveData.toDate + '\n\nAdmin will review your request.')
+        
+        // Dispatch events to notify admin dashboard
+        console.log('📡 Dispatching newLeaveRequest event to admin dashboard...')
+        window.dispatchEvent(new CustomEvent('newLeaveRequest', { 
+          detail: { request: newLeaveData } 
+        }))
+        window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
+        
+        console.log('✅ Events dispatched successfully')
+        
+        // Reset form
+        setFormData({
+          leaveType: '',
+          fromDate: '',
+          toDate: '',
+          reason: '',
+          duration: 'Full Day',
+          contactNumber: '',
+          emergencyContact: ''
+        })
+        setShowAddForm(false)
+        setEditingLeave(null)
+        
+        // Reload data to show the new request
+        loadLeaves()
+      } catch (error) {
+        console.error('❌ Error submitting leave request:', error)
+        alert('❌ Failed to submit leave request! Error: ' + error.message)
       }
-
-      setShowAddForm(false)
-      setEditingLeave(null)
-      setFormData({
-        leaveType: '',
-        fromDate: '',
-        toDate: '',
-        reason: '',
-        duration: 'Full Day',
-        contactNumber: '',
-        emergencyContact: ''
-      })
-      loadLeaves()
-    } catch (error) {
-      console.error('Failed to submit leave:', error)
-      alert('Failed to submit leave request')
     }
   }
 
@@ -138,16 +236,131 @@ const LeaveManagement = () => {
     setShowAddForm(true)
   }
 
-  const handleDelete = async (id) => {
+  const handleDelete = (id) => {
+    console.log('=== DELETE BUTTON CLICKED ===')
+    console.log('Leave to delete:', id)
+    
     if (window.confirm('Are you sure you want to delete this leave request?')) {
       try {
-        await leaveAPI.delete(id)
-        alert('Leave request deleted successfully!')
+        // Delete from localStorage
+        const storedLeaves = localStorage.getItem('leaveRequests')
+        
+        if (storedLeaves) {
+          const leavesArray = JSON.parse(storedLeaves)
+          const updatedLeaves = leavesArray.filter(l => 
+            (l.id !== id && l._id !== id)
+          )
+          localStorage.setItem('leaveRequests', JSON.stringify(updatedLeaves))
+          console.log('Deleted from leaveRequests. Remaining:', updatedLeaves.length)
+        }
+        
+        // Update state
+        const updatedLeaves = leaves.filter(l => 
+          (l.id !== id && l._id !== id)
+        )
+        setLeaves(updatedLeaves)
+        
+        alert('✅ Leave request deleted successfully!')
+        
+        // Notify admin dashboard
+        window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
+        
+        // Reload data
         loadLeaves()
       } catch (error) {
         console.error('Failed to delete leave:', error)
-        alert('Failed to delete leave request')
+        alert('❌ Failed to delete leave request!')
       }
+    }
+  }
+
+  const handleProfileUpdate = (e) => {
+    e.preventDefault()
+    
+    try {
+      // Validate password if changing
+      if (profileData.newPassword || profileData.confirmPassword) {
+        if (!profileData.currentPassword) {
+          alert('Please enter your current password to change it.')
+          return
+        }
+        if (profileData.newPassword !== profileData.confirmPassword) {
+          alert('New passwords do not match!')
+          return
+        }
+        if (profileData.newPassword.length < 6) {
+          alert('New password must be at least 6 characters long.')
+          return
+        }
+      }
+      
+      // Prepare updated user data
+      const updatedData = {
+        employeeId: profileData.employeeId,
+        name: profileData.name,
+        email: profileData.email,
+        department: profileData.department
+      }
+      
+      console.log('=== PROFILE UPDATE ===')
+      console.log('Current user:', user)
+      console.log('Updated data:', updatedData)
+      
+      // Update password if provided
+      if (profileData.newPassword) {
+        // Verify current password (simple check)
+        if (user?.password && user.password !== profileData.currentPassword) {
+          alert('❌ Current password is incorrect!')
+          return
+        }
+        updatedData.password = profileData.newPassword
+      }
+      
+      // Update user in auth context and localStorage
+      if (updateUser) {
+        const result = updateUser(updatedData)
+        console.log('Updated user via context:', result)
+      } else {
+        // Fallback if updateUser is not available
+        const storedUser = localStorage.getItem('user')
+        if (storedUser) {
+          const userData = JSON.parse(storedUser)
+          const updatedUser = { ...userData, ...updatedData }
+          localStorage.setItem('user', JSON.stringify(updatedUser))
+          console.log('Updated user via localStorage:', updatedUser)
+        }
+      }
+      
+      const message = profileData.newPassword 
+        ? '✅ Profile and password updated successfully! Please login again with your new credentials.' 
+        : '✅ Profile updated successfully!'
+      
+      alert(message)
+      setShowProfileEdit(false)
+      
+      // Reset password fields
+      setProfileData({
+        ...profileData,
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+      
+      // If password was changed, logout and redirect to login
+      if (profileData.newPassword) {
+        setTimeout(() => {
+          localStorage.removeItem('token')
+          window.location.href = '/login'
+        }, 1000)
+      } else {
+        // Just reload to show updated info
+        setTimeout(() => {
+          window.location.reload()
+        }, 500)
+      }
+    } catch (error) {
+      console.error('Failed to update profile:', error)
+      alert('❌ Failed to update profile. Please try again.')
     }
   }
 
@@ -164,18 +377,6 @@ const LeaveManagement = () => {
     }
   }
 
-  const getStatusIcon = (status) => {
-    switch (status?.toLowerCase()) {
-      case 'approved':
-        return <FaCheckCircle className="text-green-600" />
-      case 'rejected':
-        return <FaTimesCircle className="text-red-600" />
-      case 'pending':
-        return <FaHourglassHalf className="text-yellow-600" />
-      default:
-        return <FaFileAlt className="text-gray-600" />
-    }
-  }
 
   const filteredLeaves = leaves.filter(leave => {
     const matchesSearch = leave.leaveType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -223,6 +424,180 @@ const LeaveManagement = () => {
               Request Leave
             </button>
           </div>
+        </div>
+
+        {/* Employee Profile Card */}
+        <div className="bg-gradient-to-r from-teal-50 to-blue-50 p-6 rounded-lg shadow-md border-2 border-teal-300 mb-6">
+          <div className="flex justify-between items-start mb-4">
+            <h2 className="text-xl font-bold text-teal-800 flex items-center space-x-2">
+              <FaUser />
+              <span>My Profile</span>
+            </h2>
+            <button
+              onClick={() => setShowProfileEdit(!showProfileEdit)}
+              className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-md transition-all"
+            >
+              <FaEdit />
+              <span>{showProfileEdit ? 'Cancel Edit' : 'Edit Profile'}</span>
+            </button>
+          </div>
+          
+          {!showProfileEdit ? (
+            <div className="flex items-center space-x-6">
+              <div className="w-20 h-20 bg-teal-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                {(user?.name || 'E').charAt(0).toUpperCase()}
+              </div>
+              <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Full Name</p>
+                  <p className="text-lg font-bold text-gray-800">{user?.name || 'Employee'}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Employee ID</p>
+                  <p className="text-lg font-bold text-gray-800">{user?.employeeId || 'EMP001'}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Department</p>
+                  <p className="text-lg font-bold text-gray-800">{user?.department || 'IT'}</p>
+                </div>
+                <div className="bg-white p-4 rounded-lg shadow-sm">
+                  <p className="text-xs text-gray-500 uppercase font-semibold mb-1">Email</p>
+                  <p className="text-lg font-bold text-gray-800">{user?.email || 'employee@company.com'}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <form onSubmit={handleProfileUpdate} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FaUser className="inline mr-2" />
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.name}
+                    onChange={(e) => setProfileData({...profileData, name: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter your name"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FaUser className="inline mr-2" />
+                    Employee ID
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.employeeId}
+                    onChange={(e) => setProfileData({...profileData, employeeId: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter employee ID"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Department
+                  </label>
+                  <input
+                    type="text"
+                    value={profileData.department}
+                    onChange={(e) => setProfileData({...profileData, department: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter department"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <FaUser className="inline mr-2" />
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    value={profileData.email}
+                    onChange={(e) => setProfileData({...profileData, email: e.target.value})}
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    placeholder="Enter your email"
+                    required
+                  />
+                </div>
+              </div>
+              
+              {/* Password Change Section */}
+              <div className="border-t-2 border-gray-200 pt-4 mt-6">
+                <h3 className="text-lg font-semibold text-gray-800 mb-4">Change Password (Optional)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Current Password
+                    </label>
+                    <input
+                      type="password"
+                      value={profileData.currentPassword}
+                      onChange={(e) => setProfileData({...profileData, currentPassword: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      placeholder="Enter current password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={profileData.newPassword}
+                      onChange={(e) => setProfileData({...profileData, newPassword: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      placeholder="Enter new password"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Confirm New Password
+                    </label>
+                    <input
+                      type="password"
+                      value={profileData.confirmPassword}
+                      onChange={(e) => setProfileData({...profileData, confirmPassword: e.target.value})}
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      placeholder="Confirm new password"
+                    />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 mt-2">
+                  Leave password fields empty if you don't want to change your password.
+                </p>
+              </div>
+              
+              <div className="flex justify-end space-x-3 mt-6 pt-4 border-t border-gray-200">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowProfileEdit(false)
+                    setProfileData({
+                      employeeId: user?.employeeId || 'EMP001',
+                      name: user?.name || 'Employee',
+                      email: user?.email || 'employee@company.com',
+                      department: user?.department || 'IT',
+                      currentPassword: '',
+                      newPassword: '',
+                      confirmPassword: ''
+                    })
+                  }}
+                  className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-6 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition-colors"
+                >
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          )}
         </div>
 
         {/* Statistics Cards */}

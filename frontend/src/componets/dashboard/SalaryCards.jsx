@@ -1,6 +1,8 @@
+/* eslint-disable */
+// SalaryCards.jsx - Cache bust: 2026-03-10-23-20
 import React, { useState, useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
-import { FaMoneyBillWave, FaLock, FaUnlock, FaEdit, FaTrash, FaPlus, FaUser } from 'react-icons/fa'
+import { FaMoneyBillWave, FaLock, FaUnlock, FaEdit, FaTrash, FaPlus, FaUser, FaSync, FaCheck, FaTimes } from 'react-icons/fa'
 import { salaryAPI } from '../../services/api'
 import AdminSidebar from './AdminSidebar'
 
@@ -54,6 +56,40 @@ const SalaryCards = () => {
   useEffect(() => {
     loadSalaries()
     loadSalaryRequests()
+    
+    // Listen for new salary requests from employees
+    const handleNewSalaryRequest = () => {
+      console.log('📨 Admin dashboard received new salary request notification')
+      loadSalaryRequests()
+      loadSalaries()
+    }
+    
+    // Listen for salary data updates
+    const handleSalaryDataUpdated = () => {
+      console.log('🔄 Admin dashboard received salary data update notification')
+      loadSalaryRequests()
+      loadSalaries()
+    }
+    
+    // Listen for clear all data event
+    const handleClearAllData = () => {
+      console.log('🗑️ Admin dashboard received clear all data notification')
+      setSalaries([])
+      setSalaryRequests([])
+      loadSalaryRequests()
+      loadSalaries()
+    }
+    
+    window.addEventListener('newSalaryRequest', handleNewSalaryRequest)
+    window.addEventListener('salaryDataUpdated', handleSalaryDataUpdated)
+    window.addEventListener('clearAllSalaryData', handleClearAllData)
+    
+    // Cleanup listeners on unmount
+    return () => {
+      window.removeEventListener('newSalaryRequest', handleNewSalaryRequest)
+      window.removeEventListener('salaryDataUpdated', handleSalaryDataUpdated)
+      window.removeEventListener('clearAllSalaryData', handleClearAllData)
+    }
   }, [])
 
   useEffect(() => {
@@ -78,11 +114,27 @@ const SalaryCards = () => {
 
   const loadSalaryRequests = () => {
     try {
-      const requests = JSON.parse(localStorage.getItem('salary_requests') || '[]')
-      console.log('Loaded salary requests:', requests)
+      console.log('=== ADMIN LOADING SALARY REQUESTS ===')
+      const requests = JSON.parse(localStorage.getItem('salaryRequests') || '[]')
+      console.log('📥 Loaded salary requests from localStorage:', requests.length)
+      console.log('📋 All requests:', requests)
+      
+      // Log each request for debugging
+      requests.forEach((req, index) => {
+        console.log(`Request ${index + 1}:`, {
+          id: req._id || req.id,
+          name: req.employeeName,
+          employeeId: req.employeeId,
+          netSalary: req.netSalary,
+          status: req.status,
+          effectiveDate: req.effectiveDate
+        })
+      })
+      
       setSalaryRequests(requests)
+      console.log('✅ Admin dashboard updated with', requests.length, 'requests')
     } catch (error) {
-      console.error('Failed to load salary requests:', error)
+      console.error('❌ Failed to load salary requests:', error)
       setSalaryRequests([])
     }
   }
@@ -96,9 +148,25 @@ const SalaryCards = () => {
       const response = await salaryAPI.getAll()
       console.log('Admin salaries API response:', response)
       
-      if (response.data && response.data.length > 0) {
-        // Filter only admin-submitted data for admin dashboard
-        const adminSalaries = response.data.filter(s => s.submittedBy === 'admin')
+      // Handle different API response formats
+      let salariesData = []
+      if (Array.isArray(response)) {
+        // API returns array directly
+        salariesData = response
+      } else if (response.data && Array.isArray(response.data)) {
+        // API returns wrapped in data property
+        salariesData = response.data
+      } else {
+        console.log('Unexpected API response format:', response)
+        salariesData = []
+      }
+      
+      console.log('Processed salaries data:', salariesData)
+      
+      if (salariesData.length > 0) {
+        // Filter only admin-submitted data for admin dashboard (or show all if no submittedBy field)
+        const adminSalaries = salariesData.filter(s => !s.submittedBy || s.submittedBy === 'admin')
+        console.log('Filtered admin salaries:', adminSalaries)
         setSalaries(adminSalaries)
         // Save to admin-specific localStorage
         localStorage.setItem('admin_dashboard_salaries', JSON.stringify(adminSalaries))
@@ -178,9 +246,24 @@ const SalaryCards = () => {
           await salaryAPI.update(editingSalary._id, salaryData)
           alert('Salary record updated successfully!')
           loadSalaries()
+          
+          // Notify dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
         } catch (apiError) {
           console.warn('API update failed, using local fallback:', apiError)
-          setSalaries(prev => prev.map(s => s._id === editingSalary._id ? salaryData : s))
+          
+          // Update in state and localStorage
+          const updatedSalaries = salaries.map(s => 
+            (s._id === editingSalary._id || s.id === editingSalary.id) 
+              ? { ...s, ...salaryData, _id: s._id || s.id } 
+              : s
+          )
+          setSalaries(updatedSalaries)
+          localStorage.setItem('admin_dashboard_salaries', JSON.stringify(updatedSalaries))
+          
+          // Notify dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+          
           alert('Salary record updated locally!')
         }
       } else {
@@ -188,13 +271,25 @@ const SalaryCards = () => {
           await salaryAPI.create(salaryData)
           alert('Salary record created successfully!')
           loadSalaries()
+          
+          // Notify dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
         } catch (apiError) {
           console.warn('API create failed, using local fallback:', apiError)
-          setSalaries(prev => {
-            const newSalaries = [...prev, salaryData]
-            localStorage.setItem('admin_dashboard_salaries', JSON.stringify(newSalaries))
-            return newSalaries
-          })
+          
+          // Add to state and localStorage
+          const newSalary = {
+            ...salaryData,
+            _id: Date.now().toString(),
+            id: Date.now()
+          }
+          const newSalaries = [...salaries, newSalary]
+          setSalaries(newSalaries)
+          localStorage.setItem('admin_dashboard_salaries', JSON.stringify(newSalaries))
+          
+          // Notify dashboard
+          window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+          
           alert('Salary record created locally!')
         }
       }
@@ -262,9 +357,9 @@ const SalaryCards = () => {
         console.warn('API create failed, using local fallback:', apiError)
         
         // Save to salary requests localStorage
-        const existingRequests = JSON.parse(localStorage.getItem('salary_requests') || '[]')
+        const existingRequests = JSON.parse(localStorage.getItem('salaryRequests') || '[]')
         const newRequests = [...existingRequests, salaryRequest]
-        localStorage.setItem('salary_requests', JSON.stringify(newRequests))
+        localStorage.setItem('salaryRequests', JSON.stringify(newRequests))
         
         console.log('Salary request saved locally:', newRequests)
         alert('Your salary request has been submitted locally for admin approval!')
@@ -321,23 +416,74 @@ const SalaryCards = () => {
   }
 
   const handleDelete = async (salaryId) => {
+    console.log('=== SALARYCARDS DELETE START ===')
+    console.log('Salary ID to delete:', salaryId)
+    console.log('Salary ID type:', typeof salaryId)
+    console.log('Salary ID length:', salaryId?.length)
+    console.log('Is MongoDB ObjectId format:', salaryId?.length === 24 && /^[0-9a-fA-F]{24}$/.test(salaryId))
+    
     if (window.confirm('Are you sure you want to delete this salary record?')) {
+      // Check if ID is a valid MongoDB ObjectId format BEFORE any try-catch
+      const isValidObjectId = salaryId && typeof salaryId === 'string' && salaryId.length === 24 && /^[0-9a-fA-F]{24}$/.test(salaryId)
+      
+      console.log('Final ObjectId validation result:', isValidObjectId)
+      
+      if (!isValidObjectId) {
+        console.log('Invalid MongoDB ObjectId format, deleting locally only...')
+        console.log('Skipping API call completely to avoid server error')
+        
+        // For local records (non-ObjectId format), delete locally only
+        const updatedSalaries = salaries.filter(s => s._id !== salaryId)
+        setSalaries(updatedSalaries)
+        localStorage.setItem('admin_dashboard_salaries', JSON.stringify(updatedSalaries))
+        alert('Local salary record deleted successfully!')
+        return // Exit early, don't try API at all
+      }
+      
+      // Only proceed with API for valid ObjectIds
       try {
-        await salaryAPI.delete(salaryId)
-        alert('Salary record deleted successfully!')
-        loadSalaries()
+        console.log('Valid MongoDB ObjectId, attempting server API deletion...')
+        const apiDeleted = await salaryAPI.delete(salaryId)
+        console.log('Server API deletion result:', apiDeleted)
+        
+        if (apiDeleted) {
+          console.log('Successfully deleted from server API')
+          alert('Salary record deleted successfully!')
+          loadSalaries()
+        } else {
+          console.log('Server API deletion failed, trying local deletion...')
+          // Fallback to local deletion
+          const updatedSalaries = salaries.filter(s => s._id !== salaryId)
+          setSalaries(updatedSalaries)
+          localStorage.setItem('admin_dashboard_salaries', JSON.stringify(updatedSalaries))
+          alert('Salary record deleted locally!')
+        }
       } catch (error) {
         console.error('Failed to delete salary:', error)
-        alert('Failed to delete salary record.')
+        console.log('API error, attempting local deletion fallback...')
+        
+        // Fallback: delete from local state and localStorage
+        try {
+          const updatedSalaries = salaries.filter(s => s._id !== salaryId)
+          setSalaries(updatedSalaries)
+          localStorage.setItem('admin_dashboard_salaries', JSON.stringify(updatedSalaries))
+          alert(`Salary record deleted locally (server error: ${error.message})`)
+        } catch (localError) {
+          console.error('Local deletion also failed:', localError)
+          alert('Failed to delete salary record. Please try again.')
+        }
       }
     }
   }
 
   const handleApproveRequest = (request) => {
     try {
+      console.log('Approving request:', request)
+      
       // Convert request to salary record
       const salaryRecord = {
         ...request,
+        _id: request._id || request.id || Date.now().toString(),
         status: 'Active',
         approved: true,
         approvedAt: new Date().toISOString(),
@@ -349,14 +495,19 @@ const SalaryCards = () => {
       setSalaries(newSalaries)
       localStorage.setItem('admin_dashboard_salaries', JSON.stringify(newSalaries))
 
-      // Update request status
+      // Update request status in salaryRequests
+      const requestId = request._id || request.id
       const updatedRequests = salaryRequests.map(r => 
-        r._id === request._id ? { ...r, status: 'Approved', approved: true } : r
+        (r._id === requestId || r.id === requestId) ? { ...r, status: 'Approved', approved: true } : r
       )
       setSalaryRequests(updatedRequests)
-      localStorage.setItem('salary_requests', JSON.stringify(updatedRequests))
+      localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
 
-      alert(`Salary request for ${request.employeeName} approved successfully!`)
+      // Notify dashboard
+      window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+
+      console.log('Request approved and saved to localStorage')
+      alert(`✅ Salary request for ${request.employeeName} approved successfully!`)
     } catch (error) {
       console.error('Failed to approve request:', error)
       alert('Failed to approve request.')
@@ -366,17 +517,49 @@ const SalaryCards = () => {
   const handleRejectRequest = (request) => {
     if (window.confirm(`Are you sure you want to reject the salary request for ${request.employeeName}?`)) {
       try {
+        console.log('Rejecting request:', request)
+        
         // Update request status
+        const requestId = request._id || request.id
         const updatedRequests = salaryRequests.map(r => 
-          r._id === request._id ? { ...r, status: 'Rejected', approved: false } : r
+          (r._id === requestId || r.id === requestId) ? { ...r, status: 'Rejected', approved: false } : r
         )
         setSalaryRequests(updatedRequests)
-        localStorage.setItem('salary_requests', JSON.stringify(updatedRequests))
+        localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
 
-        alert(`Salary request for ${request.employeeName} rejected.`)
+        // Notify dashboard
+        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+
+        console.log('Request rejected and saved to localStorage')
+        alert(`❌ Salary request for ${request.employeeName} rejected.`)
       } catch (error) {
         console.error('Failed to reject request:', error)
         alert('Failed to reject request.')
+      }
+    }
+  }
+
+  const handleDeleteRequest = (request) => {
+    if (window.confirm(`Are you sure you want to delete the salary request for ${request.employeeName}? This action cannot be undone.`)) {
+      try {
+        console.log('Deleting request:', request)
+        
+        // Remove request from array
+        const requestId = request._id || request.id
+        const updatedRequests = salaryRequests.filter(r => 
+          (r._id !== requestId && r.id !== requestId)
+        )
+        setSalaryRequests(updatedRequests)
+        localStorage.setItem('salaryRequests', JSON.stringify(updatedRequests))
+
+        // Notify dashboard
+        window.dispatchEvent(new CustomEvent('salaryDataUpdated'))
+
+        console.log('Request deleted from localStorage')
+        alert(`🗑️ Salary request for ${request.employeeName} deleted successfully.`)
+      } catch (error) {
+        console.error('Failed to delete request:', error)
+        alert('Failed to delete request.')
       }
     }
   }
@@ -400,13 +583,67 @@ const SalaryCards = () => {
               </div>
               <div className='flex flex-wrap gap-3 mt-4'>
                 {user?.role === 'admin' && (
-                  <button 
-                    onClick={() => setShowForm(!showForm)}
-                    className='bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center'
-                  >
-                    <FaPlus className='mr-2' />
-                    Add Salary
-                  </button>
+                  <>
+                    <button 
+                      onClick={() => {
+                        if (window.confirm('⚠️ WARNING: Clear ALL salary data from the system? This cannot be undone!')) {
+                          if (window.confirm('🚨 FINAL CONFIRMATION: Delete everything?')) {
+                            console.log('=== ADMIN CLEARING ALL DATA ===')
+                            localStorage.removeItem('salaryRequests')
+                            localStorage.removeItem('salaryRecords')
+                            localStorage.removeItem('admin_dashboard_salaries')
+                            localStorage.removeItem('salary_requests')
+                            setSalaries([])
+                            setSalaryRequests([])
+                            alert('✅ All data cleared! Page will reload.')
+                            setTimeout(() => window.location.reload(), 1000)
+                          }
+                        }
+                      }}
+                      className='bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center'
+                      title='Clear all salary data'
+                    >
+                      <FaTrash className='mr-2' />
+                      Clear All Data
+                    </button>
+                    <button 
+                      onClick={() => setShowForm(!showForm)}
+                      className='bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center'
+                    >
+                      <FaPlus className='mr-2' />
+                      Add Salary
+                    </button>
+                    <button 
+                      onClick={() => {
+                        console.log('🔄 Manual refresh triggered')
+                        loadSalaries()
+                        loadSalaryRequests()
+                      }}
+                      className='bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center'
+                      title='Refresh salary data'
+                    >
+                      <FaSync className='mr-2' />
+                      Refresh Data
+                    </button>
+                    <button 
+                      onClick={() => {
+                        const requests = JSON.parse(localStorage.getItem('salaryRequests') || '[]')
+                        const salaries = JSON.parse(localStorage.getItem('admin_dashboard_salaries') || '[]')
+                        alert(`📊 Storage Status:\n\n` +
+                              `Salary Requests: ${requests.length}\n` +
+                              `Admin Salaries: ${salaries.length}\n\n` +
+                              `Check console for details.`)
+                        console.log('📊 STORAGE DEBUG:')
+                        console.log('Salary Requests:', requests)
+                        console.log('Admin Salaries:', salaries)
+                      }}
+                      className='bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center'
+                      title='Check storage status'
+                    >
+                      <FaUser className='mr-2' />
+                      Debug Storage
+                    </button>
+                  </>
                 )}
                 {(user?.role === 'employee' || user?.role === 'admin') && (
                   <button 
@@ -503,11 +740,29 @@ const SalaryCards = () => {
                   />
                 </div>
                 <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>Net Salary</label>
+                  <input
+                    type='text'
+                    value={`$${((parseFloat(formData.basicSalary) || 0) + (parseFloat(formData.allowances) || 0) - (parseFloat(formData.deductions) || 0)).toLocaleString()}`}
+                    className='w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 font-semibold text-green-700'
+                    readOnly
+                  />
+                </div>
+                <div>
                   <label className='block text-sm font-medium text-gray-700 mb-2'>Pay Date</label>
                   <input
                     type='date'
                     value={formData.payDate}
                     onChange={(e) => setFormData({...formData, payDate: e.target.value})}
+                    className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
+                  />
+                </div>
+                <div>
+                  <label className='block text-sm font-medium text-gray-700 mb-2'>Effective Date</label>
+                  <input
+                    type='date'
+                    value={formData.effectiveDate}
+                    onChange={(e) => setFormData({...formData, effectiveDate: e.target.value})}
                     className='w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500'
                   />
                 </div>
@@ -640,7 +895,7 @@ const SalaryCards = () => {
 
         {/* Salary Records Table */}
         <div className='bg-white rounded-lg shadow-lg p-6'>
-          <div className='flex justify-between items-center mb-6'>
+          <div className='flex justify-between items-center mb-4'>
             <h3 className='text-xl font-bold text-gray-800'>Salary History</h3>
             <div className='flex items-center space-x-2'>
               <span className='text-sm text-gray-600'>Total: {[...salaries, ...salaryRequests].length}</span>
@@ -649,6 +904,53 @@ const SalaryCards = () => {
               </button>
             </div>
           </div>
+          
+          {/* Filter Buttons */}
+          {user?.role === 'admin' && (
+            <div className='flex flex-wrap gap-2 mb-4'>
+              <button
+                onClick={() => filterByStatus('all')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentFilter === 'all'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                All ({[...salaries, ...salaryRequests].length})
+              </button>
+              <button
+                onClick={() => filterByStatus('pending')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentFilter === 'pending'
+                    ? 'bg-orange-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Pending Requests ({salaryRequests.filter(r => r.status === 'Pending').length})
+              </button>
+              <button
+                onClick={() => filterByStatus('approved')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentFilter === 'approved'
+                    ? 'bg-green-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Approved ({salaryRequests.filter(r => r.status === 'Approved').length})
+              </button>
+              <button
+                onClick={() => filterByStatus('rejected')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  currentFilter === 'rejected'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                Rejected ({salaryRequests.filter(r => r.status === 'Rejected').length})
+              </button>
+            </div>
+          )}
+          
           {loading ? (
             <div className='text-center py-8'>
               <div className='text-gray-600'>Loading salary records...</div>
@@ -674,13 +976,19 @@ const SalaryCards = () => {
                   </tr>
                 </thead>
                 <tbody className='divide-y divide-gray-200'>
-                  {[...salaries, ...salaryRequests].map((record) => (
-                    <tr key={record._id} className='hover:bg-gray-50'>
+                  {filteredData.map((record) => {
+                    // Determine if this is a request or a salary record
+                    const isRequest = record.requestType === 'salary_update' || 
+                                     record.status === 'Pending' || 
+                                     salaryRequests.some(r => (r._id === record._id || r.id === record.id))
+                    
+                    return (
+                    <tr key={record._id || record.id} className='hover:bg-gray-50'>
                       <td className='px-6 py-4 text-sm'>
                         <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                          record.requestType ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
+                          isRequest ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'
                         }`}>
-                          {record.requestType ? 'Request' : 'Salary'}
+                          {isRequest ? 'Request' : 'Salary'}
                         </span>
                       </td>
                       <td className='px-6 py-4 text-sm text-gray-900'>{record.employeeId}</td>
@@ -714,36 +1022,67 @@ const SalaryCards = () => {
                       </td>
                       {user?.role === 'admin' && (
                         <td className='px-6 py-4 text-sm'>
-                          <div className='flex space-x-2'>
-                            {record.requestType && record.status === 'Pending' && (
+                          <div className='flex flex-wrap gap-2'>
+                            {isRequest && record.status === 'Pending' && (
                               <>
                                 <button 
                                   onClick={() => handleApproveRequest(record)}
-                                  className='text-green-600 hover:text-green-800'
-                                  title='Approve'
+                                  className='bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs font-medium flex items-center space-x-1'
+                                  title='Approve Request'
                                 >
-                                  <FaPlus />
+                                  <FaCheck className='text-xs' />
+                                  <span>Accept</span>
                                 </button>
                                 <button 
                                   onClick={() => handleRejectRequest(record)}
-                                  className='text-red-600 hover:text-red-800'
-                                  title='Reject'
+                                  className='bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-xs font-medium flex items-center space-x-1'
+                                  title='Reject Request'
+                                >
+                                  <FaTimes className='text-xs' />
+                                  <span>Reject</span>
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteRequest(record)}
+                                  className='bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs font-medium flex items-center space-x-1'
+                                  title='Delete Request'
+                                >
+                                  <FaTrash className='text-xs' />
+                                  <span>Delete</span>
+                                </button>
+                              </>
+                            )}
+                            {isRequest && record.status !== 'Pending' && (
+                              <>
+                                <span className='text-gray-500 text-xs italic'>
+                                  {record.status === 'Approved' ? 'Accepted' : 'Rejected'}
+                                </span>
+                                <button 
+                                  onClick={() => handleDeleteRequest(record)}
+                                  className='text-red-600 hover:text-red-800 p-1'
+                                  title='Delete Request'
                                 >
                                   <FaTrash />
                                 </button>
                               </>
                             )}
-                            {!record.requestType && (
+                            {!isRequest && (
                               <>
                                 <button 
                                   onClick={() => handleEdit(record)}
-                                  className='text-blue-600 hover:text-blue-800'
+                                  className='text-blue-600 hover:text-blue-800 p-1'
                                   title='Edit'
                                 >
                                   <FaEdit />
                                 </button>
                                 <button 
-                                  onClick={() => handleDelete(record._id)}
+                                  onClick={() => {
+                                    console.log('=== DELETE BUTTON CLICKED ===');
+                                    console.log('Record being deleted:', record);
+                                    console.log('Record ID:', record._id);
+                                    console.log('Record ID type:', typeof record._id);
+                                    console.log('Record ID length:', record._id?.length);
+                                    handleDelete(record._id);
+                                  }}
                                   className='text-red-600 hover:text-red-800'
                                   title='Delete'
                                 >
@@ -751,17 +1090,15 @@ const SalaryCards = () => {
                                 </button>
                               </>
                             )}
-                            {record.requestType && (record.status === 'Approved' || record.status === 'Rejected') && (
-                              <span className='text-gray-400 text-xs'>Processed</span>
-                            )}
                           </div>
                         </td>
                       )}
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
-              {[...salaries, ...salaryRequests].length === 0 && (
+              {filteredData.length === 0 && (
                 <div className='text-center py-8 text-gray-500'>
                   No records found.
                 </div>

@@ -7,6 +7,7 @@ import employeeRouter from './routes/employee.js'
 import salaryRouter from './routes/salary.js'
 import leaveRouter from './routes/leave.js'
 import settingsRouter from './routes/settings.js'
+import salaryRequestRouter from './routes/salaryRequest.js'
 import connectToDatabase from './db/db.js'
 
 connectToDatabase()
@@ -28,6 +29,7 @@ app.use('/api/employees', employeeRouter)
 app.use('/api/salaries', salaryRouter)
 app.use('/api/leaves', leaveRouter)
 app.use('/api/settings', settingsRouter)
+app.use('/api/salary-requests', salaryRequestRouter)
 
 
 

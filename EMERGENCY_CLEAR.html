@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Emergency Salary Data Clear</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #dc2626;
+            text-align: center;
+        }
+        button {
+            width: 100%;
+            padding: 15px;
+            margin: 10px 0;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        .clear-btn {
+            background: #dc2626;
+            color: white;
+        }
+        .clear-btn:hover {
+            background: #b91c1c;
+        }
+        .check-btn {
+            background: #2563eb;
+            color: white;
+        }
+        .check-btn:hover {
+            background: #1d4ed8;
+        }
+        .reload-btn {
+            background: #16a34a;
+            color: white;
+        }
+        .reload-btn:hover {
+            background: #15803d;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f9fafb;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #16a34a;
+            font-weight: bold;
+        }
+        .error {
+            color: #dc2626;
+            font-weight: bold;
+        }
+        .info {
+            color: #2563eb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ Emergency Salary Data Clear</h1>
+        <p style="text-align: center; color: #666;">
+            Use this page to completely clear all salary data from localStorage
+        </p>
+
+        <button class="check-btn" onclick="checkStorage()">
+            1️⃣ Check Current Storage
+        </button>
+
+        <button class="clear-btn" onclick="clearAllData()">
+            2️⃣ CLEAR ALL SALARY DATA
+        </button>
+
+        <button class="reload-btn" onclick="reloadApp()">
+            3️⃣ Reload Application
+        </button>
+
+        <div id="output"></div>
+    </div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function checkStorage() {
+            output.innerHTML = '';
+            log('=== CHECKING LOCALSTORAGE ===', 'info');
+            
+            const keys = [
+                'salaryRequests',
+                'salaryRecords',
+                'admin_dashboard_salaries',
+                'salary_requests',
+                'employeeSalaries',
+                'adminSalaries'
+            ];
+
+            let totalRecords = 0;
+            
+            keys.forEach(key => {
+                const data = localStorage.getItem(key);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        const count = Array.isArray(parsed) ? parsed.length : 1;
+                        totalRecords += count;
+                        log(`${key}: ${count} records`, 'error');
+                        log(`  Data: ${data.substring(0, 100)}...`, 'info');
+                    } catch (e) {
+                        log(`${key}: EXISTS (not JSON)`, 'error');
+                    }
+                } else {
+                    log(`${key}: EMPTY ✅`, 'success');
+                }
+            });
+
+            log(`\nTOTAL RECORDS: ${totalRecords}`, totalRecords > 0 ? 'error' : 'success');
+            
+            if (totalRecords > 0) {
+                log('\n⚠️ Data exists! Click "CLEAR ALL SALARY DATA" button', 'error');
+            } else {
+                log('\n✅ No salary data found!', 'success');
+            }
+        }
+
+        function clearAllData() {
+            if (!confirm('⚠️ WARNING: This will delete ALL salary data!\n\nAre you sure?')) {
+                return;
+            }
+
+            if (!confirm('🚨 FINAL CONFIRMATION: Delete everything?')) {
+                return;
+            }
+
+            output.innerHTML = '';
+            log('=== CLEARING ALL SALARY DATA ===', 'info');
+
+            const keys = [
+                'salaryRequests',
+                'salaryRecords',
+                'admin_dashboard_salaries',
+                'salary_requests',
+                'employeeSalaries',
+                'adminSalaries'
+            ];
+
+            // Clear each key
+            keys.forEach(key => {
+                const before = localStorage.getItem(key);
+                localStorage.removeItem(key);
+                const after = localStorage.getItem(key);
+                
+                if (after === null) {
+                    log(`${key}: REMOVED ✅`, 'success');
+                } else {
+                    log(`${key}: FAILED TO REMOVE ❌`, 'error');
+                }
+            });
+
+            // Verify all cleared
+            log('\n=== VERIFICATION ===', 'info');
+            let allCleared = true;
+            keys.forEach(key => {
+                const value = localStorage.getItem(key);
+                if (value !== null) {
+                    log(`${key}: STILL EXISTS ❌`, 'error');
+                    allCleared = false;
+                } else {
+                    log(`${key}: NULL ✅`, 'success');
+                }
+            });
+
+            if (allCleared) {
+                log('\n✅ SUCCESS! All salary data cleared!', 'success');
+                log('\nNow click "Reload Application" button', 'info');
+            } else {
+                log('\n❌ FAILED! Some data could not be cleared', 'error');
+                log('Try closing all browser tabs and reopening', 'error');
+            }
+        }
+
+        function reloadApp() {
+            log('🔄 Reloading application...', 'info');
+            setTimeout(() => {
+                window.location.href = '/';
+            }, 1000);
+        }
+
+        // Auto-check on load
+        window.onload = () => {
+            checkStorage();
+        };
+    </script>
+</body>
+</html>

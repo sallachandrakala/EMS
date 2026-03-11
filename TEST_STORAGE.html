@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test LocalStorage</title>
+    <style>
+        body { font-family: Arial; padding: 20px; max-width: 800px; margin: 0 auto; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        .success { background: #10b981; color: white; }
+        .danger { background: #ef4444; color: white; }
+        .info { background: #3b82f6; color: white; }
+        #output { background: #f3f4f6; padding: 15px; margin-top: 20px; border-radius: 5px; font-family: monospace; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test LocalStorage for Salary Data</h1>
+    
+    <button class="success" onclick="testSave()">1. Test Save Data</button>
+    <button class="info" onclick="testRead()">2. Test Read Data</button>
+    <button class="danger" onclick="testClear()">3. Clear All Data</button>
+    
+    <div id="output"></div>
+
+    <script>
+        const output = document.getElementById('output');
+
+        function log(msg) {
+            output.innerHTML += msg + '\n';
+        }
+
+        function testSave() {
+            output.innerHTML = '=== TESTING SAVE ===\n';
+            
+            try {
+                const testData = {
+                    id: Date.now(),
+                    _id: Date.now().toString(),
+                    employeeId: 'TEST001',
+                    employeeName: 'Test Employee',
+                    email: 'test@test.com',
+                    department: 'IT',
+                    basicSalary: 50000,
+                    allowances: 10000,
+                    deductions: 5000,
+                    netSalary: 55000,
+                    effectiveDate: new Date().toISOString().split('T')[0],
+                    status: 'Pending'
+                };
+                
+                log('Creating test data...');
+                log(JSON.stringify(testData, null, 2));
+                
+                // Get existing data
+                const existing = localStorage.getItem('salaryRequests');
+                const requests = existing ? JSON.parse(existing) : [];
+                log('\nCurrent requests in storage: ' + requests.length);
+                
+                // Add new data
+                requests.push(testData);
+                localStorage.setItem('salaryRequests', JSON.stringify(requests));
+                
+                log('\n✅ SAVED! Total requests now: ' + requests.length);
+                
+                // Verify
+                const verify = JSON.parse(localStorage.getItem('salaryRequests'));
+                log('\n🔍 Verification: ' + verify.length + ' requests in storage');
+                log('Last request: ' + verify[verify.length - 1].employeeName);
+                
+            } catch (error) {
+                log('\n❌ ERROR: ' + error.message);
+            }
+        }
+
+        function testRead() {
+            output.innerHTML = '=== TESTING READ ===\n';
+            
+            try {
+                const data = localStorage.getItem('salaryRequests');
+                
+                if (!data) {
+                    log('❌ No data found in localStorage');
+                    log('\nTry clicking "1. Test Save Data" first');
+                    return;
+                }
+                
+                const requests = JSON.parse(data);
+                log('✅ Found ' + requests.length + ' requests\n');
+                
+                requests.forEach((req, index) => {
+                    log(`Request ${index + 1}:`);
+                    log(`  Name: ${req.employeeName}`);
+                    log(`  ID: ${req.employeeId}`);
+                    log(`  Salary: $${req.netSalary}`);
+                    log(`  Status: ${req.status}`);
+                    log('');
+                });
+                
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+            }
+        }
+
+        function testClear() {
+            output.innerHTML = '=== CLEARING DATA ===\n';
+            
+            if (!confirm('Clear all test data?')) {
+                log('❌ Cancelled');
+                return;
+            }
+            
+            try {
+                localStorage.removeItem('salaryRequests');
+                localStorage.removeItem('salaryRecords');
+                localStorage.removeItem('admin_dashboard_salaries');
+                
+                log('✅ Cleared all salary data');
+                log('\nVerification:');
+                log('salaryRequests: ' + localStorage.getItem('salaryRequests'));
+                log('salaryRecords: ' + localStorage.getItem('salaryRecords'));
+                log('admin_dashboard_salaries: ' + localStorage.getItem('admin_dashboard_salaries'));
+                
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+            }
+        }
+
+        // Auto-check on load
+        window.onload = () => {
+            output.innerHTML = '=== INITIAL CHECK ===\n';
+            const data = localStorage.getItem('salaryRequests');
+            if (data) {
+                const requests = JSON.parse(data);
+                log('Found ' + requests.length + ' existing requests');
+            } else {
+                log('No existing data found');
+            }
+            log('\nClick buttons above to test');
+        };
+    </script>
+</body>
+</html>

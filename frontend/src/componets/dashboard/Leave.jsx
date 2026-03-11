@@ -29,13 +29,16 @@ const Leave = () => {
   const loadLeaves = async () => {
     try {
       setLoading(true)
-      console.log('Loading leaves from API...')
-      const leavesData = await leaveAPI.getAll()
-      console.log('Leaves loaded successfully:', leavesData)
+      console.log('=== LOADING LEAVES FROM LOCALSTORAGE ===')
+      
+      // Load from localStorage (like salary system)
+      const storedLeaves = localStorage.getItem('leaveRequests')
+      const leavesData = storedLeaves ? JSON.parse(storedLeaves) : []
+      
+      console.log('Loaded leaves:', leavesData.length)
       setLeaves(leavesData)
     } catch (error) {
       console.error('Failed to load leaves:', error)
-      // Fallback to empty array if API fails
       setLeaves([])
     } finally {
       setLoading(false)
@@ -46,12 +49,14 @@ const Leave = () => {
     e.preventDefault()
     
     if (!formData.employeeId || !formData.employeeName || !formData.leaveType || !formData.fromDate || !formData.toDate) {
-      alert('Please fill in all required fields')
+      alert('❌ Please fill in all required fields')
       return
     }
 
     try {
       const leaveData = {
+        id: selectedLeave ? selectedLeave.id : Date.now(),
+        _id: selectedLeave ? selectedLeave._id : Date.now().toString(),
         employeeId: formData.employeeId,
         employeeName: formData.employeeName,
         email: formData.email,
@@ -60,36 +65,48 @@ const Leave = () => {
         fromDate: formData.fromDate,
         toDate: formData.toDate,
         reason: formData.reason,
-        status: formData.status,
-        appliedDate: formData.appliedDate
+        status: formData.status || 'Pending',
+        appliedDate: formData.appliedDate,
+        submittedBy: 'employee',
+        submittedAt: new Date().toISOString()
       }
 
       console.log('Submitting leave request:', leaveData)
       
+      // Save to localStorage (like salary system)
+      const storedLeaves = localStorage.getItem('leaveRequests')
+      let leavesArray = storedLeaves ? JSON.parse(storedLeaves) : []
+      
       if (selectedLeave) {
         // Update existing leave
-        const updatedLeave = await leaveAPI.update(selectedLeave._id, leaveData)
-        console.log('Leave request updated successfully:', updatedLeave)
-        setLeaves(prev => 
-          prev.map(leave => 
-            leave._id === selectedLeave._id 
-              ? updatedLeave
-              : leave
-          )
+        leavesArray = leavesArray.map(leave => 
+          (leave._id === selectedLeave._id || leave.id === selectedLeave.id)
+            ? leaveData
+            : leave
         )
-        alert('Leave request updated successfully!')
+        console.log('✅ Leave request updated')
+        alert('✅ Leave request updated successfully!')
       } else {
         // Add new leave
-        const newLeave = await leaveAPI.create(leaveData)
-        console.log('Leave request created successfully:', newLeave)
-        setLeaves(prev => [...prev, newLeave])
-        alert('Leave request submitted successfully!')
+        leavesArray.push(leaveData)
+        console.log('✅ Leave request created')
+        alert('✅ Leave request submitted successfully!')
       }
       
+      // Save to localStorage
+      localStorage.setItem('leaveRequests', JSON.stringify(leavesArray))
+      console.log('✅ Saved to localStorage:', leavesArray.length, 'leaves')
+      
+      // Dispatch event to notify admin dashboard
+      window.dispatchEvent(new CustomEvent('newLeaveRequest'))
+      window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
+      
+      // Reload and close
+      loadLeaves()
       closeAddPage()
     } catch (error) {
       console.error('Failed to submit leave request:', error)
-      alert('Failed to submit leave request. Please try again.')
+      alert('❌ Failed to submit leave request. Please try again.')
     }
   }
 
@@ -114,13 +131,28 @@ const Leave = () => {
     if (window.confirm('Are you sure you want to delete this leave request?')) {
       try {
         console.log('Deleting leave request:', leaveId)
-        await leaveAPI.delete(leaveId)
-        console.log('Leave request deleted successfully')
-        setLeaves(prev => prev.filter(leave => leave._id !== leaveId))
-        alert('Leave request deleted successfully!')
+        
+        // Delete from localStorage
+        const storedLeaves = localStorage.getItem('leaveRequests')
+        if (storedLeaves) {
+          const leavesArray = JSON.parse(storedLeaves)
+          const updatedLeaves = leavesArray.filter(leave => 
+            leave._id !== leaveId && leave.id !== leaveId
+          )
+          localStorage.setItem('leaveRequests', JSON.stringify(updatedLeaves))
+          console.log('✅ Leave request deleted')
+        }
+        
+        // Update state
+        setLeaves(prev => prev.filter(leave => leave._id !== leaveId && leave.id !== leaveId))
+        
+        // Dispatch event
+        window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
+        
+        alert('✅ Leave request deleted successfully!')
       } catch (error) {
         console.error('Failed to delete leave request:', error)
-        alert('Failed to delete leave request. Please try again.')
+        alert('❌ Failed to delete leave request. Please try again.')
       }
     }
   }
