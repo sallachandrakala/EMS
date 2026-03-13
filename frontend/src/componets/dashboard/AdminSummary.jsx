@@ -19,6 +19,11 @@ const AdminSummary = () => {
     totalEmployees: 0,
     totalDepartments: 0,
     totalSalary: 0,
+    totalNetSalary: 0,
+    totalAllowances: 0,
+    totalDeductions: 0,
+    averageSalary: 0,
+    salaryByDepartment: {},
     leaveApplied: 0,
     leaveApproved: 0,
     leavePending: 0,
@@ -134,7 +139,42 @@ const AdminSummary = () => {
         return sum + basicSalary
       }, 0)
 
-      console.log('=== TOTAL MONTHLY SALARY: $' + totalSalary + ' ===')
+      const totalNetSalary = salaries.reduce((sum, salary) => {
+        const netSalary = parseFloat(salary.netSalary) || parseFloat(salary.basicSalary) || 0
+        return sum + netSalary
+      }, 0)
+
+      const totalAllowances = salaries.reduce((sum, salary) => {
+        const allowances = parseFloat(salary.allowances) || 0
+        return sum + allowances
+      }, 0)
+
+      const totalDeductions = salaries.reduce((sum, salary) => {
+        const deductions = parseFloat(salary.deductions) || 0
+        return sum + deductions
+      }, 0)
+
+      const averageSalary = salaries.length > 0 ? totalSalary / salaries.length : 0
+
+      // Salary by department
+      const salaryByDepartment = salaries.reduce((acc, salary) => {
+        const dept = salary.department || 'Unknown'
+        if (!acc[dept]) {
+          acc[dept] = { count: 0, total: 0, average: 0 }
+        }
+        acc[dept].count++
+        acc[dept].total += parseFloat(salary.basicSalary) || 0
+        acc[dept].average = acc[dept].total / acc[dept].count
+        return acc
+      }, {})
+
+      console.log('=== MONTHLY SALARY ANALYSIS ===')
+      console.log('💰 Total Basic Salary: $' + totalSalary.toLocaleString())
+      console.log('💰 Total Net Salary: $' + totalNetSalary.toLocaleString())
+      console.log('🎁 Total Allowances: $' + totalAllowances.toLocaleString())
+      console.log('💸 Total Deductions: $' + totalDeductions.toLocaleString())
+      console.log('📊 Average Salary: $' + averageSalary.toLocaleString())
+      console.log('📁 Salary by Department:', salaryByDepartment)
       console.log('Based on', salaries.length, 'salary records from server')
 
       const leaveStats = leaves.reduce((acc, leave) => {
@@ -147,6 +187,11 @@ const AdminSummary = () => {
         totalEmployees: employees.length,
         totalDepartments: departments.length,
         totalSalary: totalSalary,
+        totalNetSalary: totalNetSalary,
+        totalAllowances: totalAllowances,
+        totalDeductions: totalDeductions,
+        averageSalary: averageSalary,
+        salaryByDepartment: salaryByDepartment,
         leaveApplied: leaves.length,
         leaveApproved: leaveStats.approved || 0,
         leavePending: leaveStats.pending || 0,
@@ -166,6 +211,11 @@ const AdminSummary = () => {
         totalEmployees: 0,
         totalDepartments: 0,
         totalSalary: 0,
+        totalNetSalary: 0,
+        totalAllowances: 0,
+        totalDeductions: 0,
+        averageSalary: 0,
+        salaryByDepartment: {},
         leaveApplied: 0,
         leaveApproved: 0,
         leavePending: 0,

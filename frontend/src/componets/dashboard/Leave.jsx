@@ -29,14 +29,24 @@ const Leave = () => {
   const loadLeaves = async () => {
     try {
       setLoading(true)
-      console.log('=== LOADING LEAVES FROM LOCALSTORAGE ===')
+      console.log('=== LOADING LEAVES FROM SERVER ===')
       
-      // Load from localStorage (like salary system)
-      const storedLeaves = localStorage.getItem('leaveRequests')
-      const leavesData = storedLeaves ? JSON.parse(storedLeaves) : []
-      
-      console.log('Loaded leaves:', leavesData.length)
-      setLeaves(leavesData)
+      // Try to load from server API first
+      try {
+        const serverLeaves = await leaveAPI.getAll()
+        console.log('✅ Loaded leaves from server:', serverLeaves.length)
+        setLeaves(serverLeaves)
+      } catch (serverError) {
+        console.error('❌ Server load failed:', serverError)
+        console.log('Falling back to localStorage...')
+        
+        // Fallback to localStorage
+        const storedLeaves = localStorage.getItem('leaveRequests')
+        const leavesData = storedLeaves ? JSON.parse(storedLeaves) : []
+        
+        console.log('Loaded leaves from localStorage:', leavesData.length)
+        setLeaves(leavesData)
+      }
     } catch (error) {
       console.error('Failed to load leaves:', error)
       setLeaves([])
@@ -55,15 +65,13 @@ const Leave = () => {
 
     try {
       const leaveData = {
-        id: selectedLeave ? selectedLeave.id : Date.now(),
-        _id: selectedLeave ? selectedLeave._id : Date.now().toString(),
         employeeId: formData.employeeId,
         employeeName: formData.employeeName,
         email: formData.email,
         department: formData.department,
         leaveType: formData.leaveType,
-        fromDate: formData.fromDate,
-        toDate: formData.toDate,
+        fromDate: new Date(formData.fromDate),
+        toDate: new Date(formData.toDate),
         reason: formData.reason,
         status: formData.status || 'Pending',
         appliedDate: formData.appliedDate,
@@ -71,31 +79,83 @@ const Leave = () => {
         submittedAt: new Date().toISOString()
       }
 
-      console.log('Submitting leave request:', leaveData)
-      
-      // Save to localStorage (like salary system)
-      const storedLeaves = localStorage.getItem('leaveRequests')
-      let leavesArray = storedLeaves ? JSON.parse(storedLeaves) : []
+      console.log('📋 Submitting leave request:', leaveData)
       
       if (selectedLeave) {
         // Update existing leave
-        leavesArray = leavesArray.map(leave => 
-          (leave._id === selectedLeave._id || leave.id === selectedLeave.id)
-            ? leaveData
-            : leave
-        )
-        console.log('✅ Leave request updated')
-        alert('✅ Leave request updated successfully!')
+        try {
+          console.log('🔄 Updating leave via server API...')
+          const leaveId = selectedLeave._id || selectedLeave.id
+          const updatedLeave = await leaveAPI.update(leaveId, leaveData)
+          console.log('✅ Server response:', updatedLeave)
+          
+          // Update local state
+          setLeaves(prev => 
+            prev.map(leave => 
+              (leave._id === selectedLeave._id || leave.id === selectedLeave.id)
+                ? { ...leave, ...leaveData }
+                : leave
+            )
+          )
+          
+          console.log('✅ Leave updated successfully via server API')
+          alert('✅ Leave request updated successfully!')
+          
+        } catch (serverError) {
+          console.error('❌ Server update failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedLeaves = localStorage.getItem('leaveRequests')
+          let leavesArray = storedLeaves ? JSON.parse(storedLeaves) : []
+          
+          leavesArray = leavesArray.map(leave => 
+            (leave._id === selectedLeave._id || leave.id === selectedLeave.id)
+              ? { ...leave, ...leaveData }
+              : leave
+          )
+          
+          localStorage.setItem('leaveRequests', JSON.stringify(leavesArray))
+          setLeaves(leavesArray)
+          
+          console.log('✅ Leave updated locally (server unavailable)')
+          alert('✅ Leave request updated locally!')
+        }
       } else {
         // Add new leave
-        leavesArray.push(leaveData)
-        console.log('✅ Leave request created')
-        alert('✅ Leave request submitted successfully!')
+        try {
+          console.log('🔄 Creating leave via server API...')
+          const newLeave = await leaveAPI.create(leaveData)
+          console.log('✅ Server response:', newLeave)
+          
+          // Update local state
+          setLeaves(prev => [...prev, newLeave])
+          
+          console.log('✅ Leave created successfully via server API')
+          alert('✅ Leave request submitted successfully!')
+          
+        } catch (serverError) {
+          console.error('❌ Server creation failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedLeaves = localStorage.getItem('leaveRequests')
+          let leavesArray = storedLeaves ? JSON.parse(storedLeaves) : []
+          
+          const newLeaveData = {
+            ...leaveData,
+            id: Date.now(),
+            _id: Date.now().toString()
+          }
+          
+          leavesArray.push(newLeaveData)
+          localStorage.setItem('leaveRequests', JSON.stringify(leavesArray))
+          setLeaves(leavesArray)
+          
+          console.log('✅ Leave created locally (server unavailable)')
+          alert('✅ Leave request submitted locally!')
+        }
       }
-      
-      // Save to localStorage
-      localStorage.setItem('leaveRequests', JSON.stringify(leavesArray))
-      console.log('✅ Saved to localStorage:', leavesArray.length, 'leaves')
       
       // Dispatch event to notify admin dashboard
       window.dispatchEvent(new CustomEvent('newLeaveRequest'))
@@ -127,29 +187,52 @@ const Leave = () => {
     setShowEditPage(true)
   }
 
-  const handleDelete = async (leaveId) => {
-    if (window.confirm('Are you sure you want to delete this leave request?')) {
+  const handleDelete = async (leave) => {
+    if (window.confirm(`Are you sure you want to delete this leave request for ${leave.employeeName}?`)) {
       try {
-        console.log('Deleting leave request:', leaveId)
+        console.log('🔄 Deleting leave request:', leave)
         
-        // Delete from localStorage
-        const storedLeaves = localStorage.getItem('leaveRequests')
-        if (storedLeaves) {
-          const leavesArray = JSON.parse(storedLeaves)
-          const updatedLeaves = leavesArray.filter(leave => 
-            leave._id !== leaveId && leave.id !== leaveId
-          )
-          localStorage.setItem('leaveRequests', JSON.stringify(updatedLeaves))
-          console.log('✅ Leave request deleted')
+        // Try to delete via server API first
+        try {
+          console.log('🔄 Deleting leave via server API...')
+          const leaveId = leave._id || leave.id
+          await leaveAPI.delete(leaveId)
+          console.log('✅ Deleted from server')
+          
+          // Update local state
+          setLeaves(prev => prev.filter(l => l._id !== leaveId && l.id !== leaveId))
+          
+          console.log('✅ Leave deleted successfully via server API')
+          alert('✅ Leave request deleted successfully!')
+          
+          // Reload data from server
+          loadLeaves()
+          
+        } catch (serverError) {
+          console.error('❌ Server delete failed:', serverError)
+          console.log('Falling back to localStorage...')
+          
+          // Fallback to localStorage
+          const storedLeaves = localStorage.getItem('leaveRequests')
+          if (storedLeaves) {
+            const leavesArray = JSON.parse(storedLeaves)
+            const updatedLeaves = leavesArray.filter(l => 
+              l._id !== (leave._id || leave.id) && l.id !== (leave._id || leave.id)
+            )
+            localStorage.setItem('leaveRequests', JSON.stringify(updatedLeaves))
+            console.log('✅ Deleted from localStorage')
+          }
+          
+          // Update state
+          setLeaves(prev => prev.filter(l => l._id !== (leave._id || leave.id) && l.id !== (leave._id || leave.id)))
+          
+          console.log('✅ Leave deleted locally (server unavailable)')
+          alert('✅ Leave request deleted locally!')
         }
-        
-        // Update state
-        setLeaves(prev => prev.filter(leave => leave._id !== leaveId && leave.id !== leaveId))
         
         // Dispatch event
         window.dispatchEvent(new CustomEvent('leaveDataUpdated'))
         
-        alert('✅ Leave request deleted successfully!')
       } catch (error) {
         console.error('Failed to delete leave request:', error)
         alert('❌ Failed to delete leave request. Please try again.')
@@ -499,10 +582,10 @@ const Leave = () => {
                         {leave.leaveType}
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
-                        {leave.fromDate}
+                        {new Date(leave.fromDate).toLocaleDateString()}
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap text-sm text-gray-900'>
-                        {leave.toDate}
+                        {new Date(leave.toDate).toLocaleDateString()}
                       </td>
                       <td className='px-6 py-4 whitespace-nowrap'>
                         <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(leave.status)}`}>
@@ -519,7 +602,7 @@ const Leave = () => {
                             <FaEdit />
                           </button>
                           <button
-                            onClick={() => handleDelete(leave._id)}
+                            onClick={() => handleDelete(leave)}
                             className='text-red-600 hover:text-red-900'
                             title='Delete'
                           >
